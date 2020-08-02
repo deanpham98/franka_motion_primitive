@@ -1,0 +1,410 @@
+#include <franka_motion_primitive/primitive.h>
+
+namespace franka_motion_primitive{
+  void PrimitiveBase::transform_state(State& task, const State& world) {
+
+  }
+
+  MoveToPose::MoveToPose() {
+    speed_factor_ = 0.5;
+    pd_.p.setZero();
+    pd_.q = Quaterniond(1.0, 0., 0., 0.);
+    pd_base_.p.setZero();
+    pd_base_.q = Quaterniond(1.0, 0., 0., 0.);
+
+    fd_.setZero();
+    Sd_.setIdentity();
+
+    t_traj_syn_ = 1.0;
+    dx_traj_max_ = speed_factor_ * dx_max_;
+    delta_x_.setZero();
+  }
+
+  void MoveToPose::update_control(
+        ControlSignal& cmd, Status& status, const State& s, const double& dt){
+    if (t_exec_ == 0) {
+      s0_ = s;
+      plan_trajectory();
+    }
+
+    // update time
+    t_exec_ += dt;
+    t_max_ -= dt;
+
+    // update status
+    check_terminate(status, s);
+
+    // update control
+    // force
+    cmd.f = fd_base_;
+
+    // motion
+    if (status == Status::EXECUTING){
+      double k = std::pow(std::sin(0.5 * M_PI * t_exec_ / t_traj_syn_), 2);
+      double k_vel = std::sin(M_PI * t_exec_ / t_traj_syn_);
+      cmd.pose.p = s0_.pose.p + k * delta_x_.head(3);
+      // cmd.pose.q = slerp(s0_.pose.q, pd_.q, k);
+      cmd.pose.q = s0_.pose.q.slerp(k, pd_base_.q);
+      cmd.v = k_vel * dx_traj_max_;
+    }
+    else {
+      cmd.pose.p = pd_base_.p;
+      cmd.pose.q.coeffs() = pd_base_.q.coeffs();
+      cmd.v.setZero();
+    }
+    cmd.S.setIdentity();
+    for (size_t i = 0; i< 6; ++i){
+      if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+      // if (std::abs(fd_(i)) >= 1e-2) {cmd.S(i, i) = 0;}
+    }
+  }
+
+  void MoveToPose::configure(ParamMap& params) {
+    speed_factor_ = boost::get<double>(params["speed_factor"]);
+    pd_.p         = boost::get<Vector3d>(params["target_pos"]);
+    pd_.q         = boost::get<Quaterniond>(params["target_quat"]);
+    fd_           = boost::get<Vector6d>(params["target_force"]);
+    task_frame_.p = boost::get<Vector3d>(params["task_frame_pos"]);
+    task_frame_.q = boost::get<Quaterniond>(params["task_frame_quat"]);
+    t_max_        = boost::get<double>(params["timeout"]);
+
+    // transform target to base frame
+    transform_pose(pd_base_, pd_, task_frame_);
+
+    // quat to rotation matrix
+    // WARNING: this is redundant (computed in transform_pose)
+    //          solution: add rotation matrix to Pose struct?
+    Matrix3d R(task_frame_.q);
+    // transform target force
+    // WARNING: only control force in this case
+    // To control torque, there are 2 ways:
+    //    1. Change force control law to J_ee * F_ee, and compute fd_ee_ (same as below)
+    //    2. Compute fd_ee_ (wrench ee), then transform to (wrench base) and
+    //       use the same control law
+    fd_base_.head(3) = R*fd_.head(3);
+    fd_base_.tail(3) = R*fd_.tail(3);
+
+    // reset time
+    t_exec_ = 0;
+
+    // std::cout << pd_base_.p <<std::endl<< std::endl;
+    // std::cout << pd_base_.q.coeffs() <<std::endl<< std::endl;
+    // std::cout << s0_.pose.p <<std::endl<< std::endl;
+    // std::cout << s0_.pose.q.coeffs() <<std::endl<< std::endl;
+
+    // std::cout << fd_base_ <<std::endl<< std::endl;
+  }
+
+  void MoveToPose::check_terminate(Status& status, const State& state){
+    if (t_exec_ < t_traj_syn_ + 0.005) {status = Status::EXECUTING;}
+    else {status = Status::SUCCESS;}
+  }
+
+  void MoveToPose::plan_trajectory() {
+    // TODO read AND set controller gain
+    // calculate delta_x
+    if (pd_base_.q.coeffs().dot(s0_.pose.q.coeffs()) < 0.0) {
+      s0_.pose.q.coeffs() << -s0_.pose.q.coeffs();
+    }
+    Eigen::Quaterniond qe(pd_base_.q * s0_.pose.q.inverse());
+    Eigen::AngleAxisd aa_e(qe);  // quat -> aa
+
+    delta_x_.head(3) = pd_base_.p - s0_.pose.p;
+    delta_x_.tail(3) << aa_e.axis() * aa_e.angle();
+
+    // calculate synchronized moving time
+    Vector6d t_min_traj;
+    dx_traj_max_ = speed_factor_ * dx_max_;
+    for (size_t i = 0; i< 6; ++i){
+      t_min_traj(i) = std::abs(delta_x_(i)) / dx_traj_max_(i) * M_PI / 2;
+    }
+    t_traj_syn_ = t_min_traj.maxCoeff();
+
+    // update maximum velocity
+    for (size_t i = 0; i< 6; ++i){
+      dx_traj_max_(i) = delta_x_(i) * M_PI / (2 * t_traj_syn_);
+    }
+
+  }
+
+  ConstantVelocity::ConstantVelocity() {
+    speed_factor_ = 0;
+    // v_dir_.setZero();
+    fd_.setZero();
+    fd_base_.setZero();
+    Sd_.setIdentity();
+    f_thresh_ = 10.;
+    kDetectContact = false;
+    stopping_step_ = 0;
+    move_dir_.setZero();
+    pd_.setZero();
+    ps_.setZero();
+    qd_ = Quaterniond(1.0, 0.0, 0.0, 0.0);
+    qs_ = Quaterniond(1.0, 0.0, 0.0, 0.0);
+  }
+
+  void ConstantVelocity::update_control(
+      ControlSignal& cmd, Status& status,
+      const State& s, const double& dt) {
+    if (t_exec_ == 0) {
+      s0_ = s;
+      // pose
+      pd_ = s0_.pose.p;
+      qd_ = s0_.pose.q;
+      // plan_trajectory();
+    }
+
+    // update status
+    check_terminate(status, s);
+    // update time
+    // t_exec_ += dt;
+    if (status == Status::EXECUTING) {t_exec_ += dt;}
+    t_max_ -= dt;
+
+    // update control
+    // force
+    cmd.f = fd_base_;
+
+    if (status == Status::EXECUTING) {
+      // motion
+      if (!kDetectContact) {
+        pd_ = s0_.pose.p + t_exec_*vd_base_.head(3);
+        // desired quaternion
+        Vector3d rotd;
+        rotd = t_exec_*vd_base_.tail(3);
+        double angle = rotd.norm();
+        rotd.normalize(); // normalize vector
+        AngleAxisd aa_d(angle, rotd);
+        // NOTE different quaternion between the desired and initial orientation,
+        //      expressed in the base frame
+        Quaterniond qe_d(aa_d);   // angle axis to quaternion
+        qd_ = qe_d * s0_.pose.q;
+        // desired velocity
+        cmd.v= vd_base_;
+      }
+      else {
+        pd_ = kAlphaStop*pd_ + (1-kAlphaStop)*ps_;
+        Quaterniond qslerp = qd_.slerp(1-kAlphaStop, qs_);
+        qd_ = qslerp;
+        cmd.v = Vector6d::Zero();
+      }
+    }
+    else {cmd.v = Vector6d::Zero();}
+
+    // setting fd = f_thresh in the moving direction
+    // if (status == Status::SUCCESS) {
+    //   Vector6d f = move_dir_ * f_thresh_;
+    //   cmd.f = fd_base_ + f;
+    // }
+
+    cmd.pose.p = pd_;
+    cmd.pose.q = qd_;
+
+    // selection matrix
+    cmd.S.setIdentity();
+    for (size_t i = 0; i< 6; ++i){
+      if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+    }
+  }
+
+  void ConstantVelocity::configure(ParamMap& params) {
+    Vector6d move_dir;
+
+    speed_factor_ = boost::get<double>(params["speed_factor"]);
+    fd_           = boost::get<Vector6d>(params["target_force"]);
+    task_frame_.p = boost::get<Vector3d>(params["task_frame_pos"]);
+    task_frame_.q = boost::get<Quaterniond>(params["task_frame_quat"]);
+    t_max_        = boost::get<double>(params["timeout"]);
+    move_dir        = boost::get<Vector6d>(params["direction"]);
+    f_thresh_     = boost::get<double>(params["f_thresh"]);
+
+    // velocity in the task frame v^t_ee
+    Vector6d ve_task;
+    for (size_t i=0; i<6; ++i)
+      ve_task(i) = speed_factor_ * dx_max_(i) * move_dir(i);
+
+    // transform to base frame v^0_ee
+    // R^0_task
+    Matrix3d R(task_frame_.q);
+    vd_base_.head(3) = R*ve_task.head(3);
+    vd_base_.tail(3) = R*ve_task.tail(3);
+    move_dir_ = vd_base_.normalized();
+
+    // transform to base frame
+    fd_base_.head(3) = R*fd_.head(3);
+    fd_base_.tail(3) = R*fd_.tail(3);
+
+    // reset time
+    t_exec_ = 0.;
+    stopping_step_ =0;
+    // reset contact
+    kDetectContact = false;
+  }
+
+  void ConstantVelocity::check_terminate(Status& status, const State& state){
+    double f_proj;
+    // project external force to move direction
+    f_proj= state.f.adjoint()*move_dir_;
+
+    if (t_max_ < 0) {status = Status::TIMEOUT; return;}
+    else if (f_proj > f_thresh_) {
+      if (kDetectContact==false) {
+        ps_ = state.pose.p;
+        qs_ = state.pose.q;
+        kDetectContact = true;
+      }
+    }
+
+    if (stopping_step_<=kMaxStoppingStep) {
+      if (kDetectContact) {stopping_step_ += 1;}
+    }
+    else {status = Status::SUCCESS; return;}
+    status = Status::EXECUTING;
+  }
+
+  void ConstantVelocity::plan_trajectory() {
+    // NOTE: the formulation might wrong because the velocity representation
+    //       is not unified (note that State.v is the twist, while hte desired
+    //       velocity is not twist - instead it is the linear and angular velocity
+    //       of a frame represented in another frame)
+
+    Eigen::Vector3d t_accel, t_decel;
+    t_accel.setZero();
+    t_decel.setZero();
+    for (size_t i = 0; i < 6; ++i) {
+      t_accel(i) = std::abs(vd_base_(i) - s0_.v(i)) / ddx_max_(i);
+      t_decel(i) = std::abs(vd_base_(i)) / ddx_max_(i);
+    }
+    t_accel_ = t_accel.maxCoeff();
+    t_decel_ = t_decel.maxCoeff();
+    for (size_t i = 0; i < 3; ++i) {
+      ddx_accel_(i) = (vd_base_(i) - s0_.v(i)) / t_accel_;
+      ddx_decel_(i) = -vd_base_(i) / t_decel_;
+    }
+
+    // open loop setpoint based on velocity and moving time
+    x_accel_end_ = s0_.pose.p + s0_.v.head(3) * t_accel_ +
+                  ddx_accel_ * std::pow(t_accel_, 2) / 2;
+
+    x_constant_end_ = x_accel_end_ + vd_base_.head(3) * t_exec_;
+
+    // if (!kUseForceThreshold){
+    //   x_constant_end_ = x_accel_end_ + vd_base_.head(3) * time_move_;
+    // }
+  }
+
+  AdmittanceMotion::AdmittanceMotion() {
+    fd_.setZero();
+    fd_base_.setZero();
+    kd_.setZero();
+    z_thresh_ = 0.;
+
+    pd_.setZero();
+    ps_.setZero();
+    qd_ = Quaterniond(1., 0., 0., 0.);
+    qs_ = Quaterniond(1., 0., 0., 0.);
+
+  }
+
+  void AdmittanceMotion::update_control(
+      ControlSignal& cmd, Status& status,
+      const State& s, const double& dt) {
+    if (t_exec_ == 0) {
+      s0_ = s;
+      pd_ = s.pose.p;
+      qd_ = s.pose.q;
+    }
+
+    // update time
+    t_exec_ += dt;
+    t_max_ -= dt;
+
+    check_terminate(status, s);
+
+    // update control
+    // force
+    cmd.f = fd_base_;
+
+    if (status == Status::EXECUTING) {
+      if (!kDetectThresh) {
+        // desired end-effector velocity
+        Vector6d v_ee;
+        v_ee = -kd_ * s.f;
+        // pd_ = s.pose.p + dt*v_ee.head(3);
+        // OR
+        Vector3d pd = pd_ + dt*v_ee.head(3);
+        pd_ = pd;
+
+        // desired quaternion
+        Vector3d rotd;
+        rotd = dt*v_ee.tail(3);
+        double angle = rotd.norm();
+        if (angle <= 1e-6) {rotd.setZero(); rotd(0) = 1.;}
+        else {rotd.normalize();} // normalize vector
+        
+        AngleAxisd aa_d(angle, rotd);
+        // NOTE different quaternion between the desired and initial orientation,
+        //      expressed in the base frame
+        Quaterniond qe_d(aa_d);   // angle axis to quaternion
+
+        // qd_ = qe_d * s.pose.q;
+        // OR
+        Quaterniond qd = qe_d * qd_;
+        qd_ = qd;
+        cmd.v= v_ee;
+      }
+      else {
+        pd_ = kAlphaStop*pd_ + (1-kAlphaStop)*ps_;
+        Quaterniond qslerp = qd_.slerp(1-kAlphaStop, qs_);
+        qd_ = qslerp;
+        cmd.v = Vector6d::Zero();
+      }
+      // desired velocity
+    }
+    else {cmd.v = Vector6d::Zero();}
+
+    cmd.pose.p = pd_;
+    cmd.pose.q = qd_;
+
+    // selection matrix
+    cmd.S.setIdentity();
+    for (size_t i = 0; i< 6; ++i){
+      if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+    }
+  }
+
+  void AdmittanceMotion::configure(ParamMap& params) {
+    kd_.diagonal() = boost::get<Vector6d>(params["kd"]);
+    fd_ = boost::get<Vector6d>(params["fd"]);
+    t_max_ = boost::get<double>(params["timeout"]);
+    z_thresh_ = boost::get<double>(params["z_thresh"]);
+
+    // quat to rotatiion matrix
+    Matrix3d R(task_frame_.q);
+    // transform to base frame
+    fd_base_.head(3) = R*fd_.head(3);
+    fd_base_.tail(3) = R*fd_.tail(3);
+
+    // reset time
+    t_exec_ = 0;
+    // reset stopping step
+    stopping_step_ = 0;
+    kDetectThresh = false;
+  }
+
+  void AdmittanceMotion::check_terminate(Status& status, const State& state) {
+    if (t_max_ <0) {status = Status::TIMEOUT; return;}
+    if (state.pose.p(2) < z_thresh_) {
+      if (!kDetectThresh) {
+        ps_ = state.pose.p;
+        qs_ = state.pose.q;
+        kDetectThresh = true;
+      }
+    }
+    if (stopping_step_<=kMaxStoppingStep) {
+      if (kDetectThresh) {stopping_step_ += 1;}
+    }
+    else {status = Status::SUCCESS; return;}
+    status = Status::EXECUTING;
+  }
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<launch>
+  <!-- franka_control and franka_controller -->
+  <arg name="robot_ip" default="192.168.1.2"/>
+  <arg name="load_gripper" default="true" />
+  <arg name="publish_rate" default="500" />
+  <!-- <arg name="cutoff_frequency" default="1000"/> -->
+
+  <include file="$(find franka_control)/launch/franka_control.launch" >
+    <arg name="robot_ip" value="$(arg robot_ip)" />
+    <arg name="load_gripper" value="$(arg load_gripper)" />
+  </include>
+
+
+  <rosparam command="load" file="$(find franka_motion_primitive)/config/config.yaml" />
+  <!-- change publish rate -->
+  <rosparam param="franka_state_controller/publish_rate" subst_value="true">
+    "$(arg publish_rate)"
+  </rosparam>
+
+  <node name="controller_spawner" pkg="controller_manager"
+        type="spawner" respawn="false"
+        output="screen"  args="hybrid_controller motion_generator"/>
+</launch>

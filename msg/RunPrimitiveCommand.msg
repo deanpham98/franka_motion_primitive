@@ -1,0 +1,5 @@
+uint8 type # from PrimitiveType
+
+MoveToPoseParam move_to_pose_param
+ConstantVelocityParam constant_velocity_param
+AdmittanceMotionParam admittance_motion_param

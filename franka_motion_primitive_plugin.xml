@@ -1,0 +1,9 @@
+<library path="lib/libfranka_motion_primitive">
+  <class name="franka_motion_primitive/MotionGenerator"
+        type="franka_motion_primitive::MotionGenerator"
+        base_class_type="controller_interface::ControllerBase">
+    <description>
+      Motion primitive scheduling
+    </description>
+  </class>
+</library>
