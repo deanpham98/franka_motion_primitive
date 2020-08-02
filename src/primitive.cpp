@@ -326,10 +326,18 @@ namespace franka_motion_primitive{
     cmd.f = fd_base_;
 
     if (status == Status::EXECUTING) {
-      if (!kDetectThresh) {        
+      if (!kDetectThresh) {
+        // quaternion -> rotation matrix
+        Matrix3d R(s.pose.q);
+        // transform ee_force to base frame
+        Vector6d f0;
+        f0.head(3) = R*s.f_ee.head(3);
+        f0.tail(3) = R*s.f_ee.tail(3);
+
         // desired end-effector velocity
         Vector6d v_ee;
-        v_ee = -kd_ * s.f;
+        // v_ee = -kd_ * s.f;
+        v_ee = -kd_ * f0;
         // pd_ = s.pose.p + dt*v_ee.head(3);
         // OR
         Vector3d pd = pd_ + dt*v_ee.head(3);
