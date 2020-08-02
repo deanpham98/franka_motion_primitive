@@ -81,7 +81,8 @@ namespace franka_motion_primitive {
     Vector6d f0_ee_;
     // filter force
     Vector6d f_filter_;
-    double kCutoffFrequency{100.};
+    Vector6d f_ee_filter_;
+    double kCutoffFrequency{200.};
     double kDeltaT{0.001};
     double filter_gain_;
 

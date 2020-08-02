@@ -120,6 +120,7 @@ namespace franka_motion_primitive{
 
     // filter force
     f_filter_ = f0_;
+    f_ee_filter_ = f0_ee_;
     // filter gain
     filter_gain_ = kDeltaT / (kDeltaT + 1/(2*M_PI*kCutoffFrequency));
     std::cout << filter_gain_ <<std::endl;
@@ -175,10 +176,12 @@ namespace franka_motion_primitive{
 
     // update filter force
     f_filter_ = filter_gain_ * f + (1 - filter_gain_) * f_filter_;
+    f_ee_filter_ = filter_gain_ * f_ee + (1 - filter_gain_) * f_ee_filter_;
 
     // update initial force
     if (kSetInitialForce) {
       f0_ = f_filter_;
+      f0_ee_ = f_ee_filter_;
       kSetInitialForce = false;
     }
 
@@ -188,7 +191,7 @@ namespace franka_motion_primitive{
     s.pose.q = q;
     s.v = J*dq_filter_;   // base twist
     s.f = f_filter_ - f0_;
-    s.f_ee = f_ee - f0_ee_;
+    s.f_ee = f_ee_filter_ - f0_ee_;
 
     // update control u = f(s, t)
     ControlSignal cmd;

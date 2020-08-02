@@ -326,7 +326,7 @@ namespace franka_motion_primitive{
     cmd.f = fd_base_;
 
     if (status == Status::EXECUTING) {
-      if (!kDetectThresh) {
+      if (!kDetectThresh) {        
         // desired end-effector velocity
         Vector6d v_ee;
         v_ee = -kd_ * s.f;
@@ -341,7 +341,7 @@ namespace franka_motion_primitive{
         double angle = rotd.norm();
         if (angle <= 1e-6) {rotd.setZero(); rotd(0) = 1.;}
         else {rotd.normalize();} // normalize vector
-        
+
         AngleAxisd aa_d(angle, rotd);
         // NOTE different quaternion between the desired and initial orientation,
         //      expressed in the base frame
