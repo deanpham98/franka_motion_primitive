@@ -321,6 +321,7 @@ namespace franka_motion_primitive{
       s0_ = s;
       pd_ = s.pose.p;
       qd_ = s.pose.q;
+      fd_ = fd_base_;
     }
 
     // update time
@@ -331,8 +332,9 @@ namespace franka_motion_primitive{
 
     // update control
     // force
-    cmd.f = fd_base_;
+    // cmd.f = fd_base_;
 
+    // Vector6d fd;
     if (status == Status::EXECUTING) {
       if (!kDetectThresh) {
         // quaternion -> rotation matrix
@@ -375,12 +377,18 @@ namespace franka_motion_primitive{
         qd_ = qslerp;
         cmd.v = Vector6d::Zero();
       }
-      // desired velocity
+      // update dsired force
+      if (fd_base_(2) > 0) {
+        if (t_max_ > dt)
+          fd_(2) = fd_base_(2) + dt/t_max_*(kMaxForce - fd_base_(2));
+        else fd_(2) = kMaxForce;
+      }
     }
     else {cmd.v = Vector6d::Zero();}
 
     cmd.pose.p = pd_;
     cmd.pose.q = qd_;
+    cmd.f = fd_;
 
     // selection matrix
     cmd.S.setIdentity();

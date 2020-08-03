@@ -46,12 +46,12 @@ class TestConstantVelocity:
         self.ros_interface.move_to_pose(pos, quat, 0.1)
 
         cmd = self.ros_interface.get_constant_velocity_cmd()
-        cmd.constant_velocity_param.speed_factor = 0.01
-        cmd.constant_velocity_param.direction = np.array([0, 0, 0., 0, 1, 0])
+        cmd.constant_velocity_param.speed_factor = 0.03
+        cmd.constant_velocity_param.direction = np.array([0, 0, 0., 0, -1, 0])
 
         # move for 1 sec
         cmd.constant_velocity_param.timeout = 10.
-        cmd.constant_velocity_param.f_thresh = 0.5
+        cmd.constant_velocity_param.f_thresh = 5.
         self.ros_interface.publish(cmd)
 
     # to be call after test_move_to_contact
@@ -92,9 +92,9 @@ class TestConstantVelocity:
 if __name__ == '__main__':
     test = TestConstantVelocity()
     # test.test_null_cmd()
-    # test.test_translation()
+    test.test_translation()
     # test.test_rotation()
-    test.test_move_to_contact()
+    # test.test_move_to_contact()
     # test.test_sliding()
     # test.test_task_frame()
     # test.test_force_control()

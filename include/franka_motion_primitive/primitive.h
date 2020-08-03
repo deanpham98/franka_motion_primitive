@@ -177,7 +177,7 @@ namespace franka_motion_primitive{
       void SetAdmittanceGain(const Vector6d& kd) override {
         kd_.setIdentity();
         kd_.diagonal() = kd;
-      } 
+      }
     private:
       // primitive parameters
       Vector6d fd_;
@@ -197,6 +197,9 @@ namespace franka_motion_primitive{
       int stopping_step_;
       const int kMaxStoppingStep{100};
       const double kAlphaStop{0.95}; // p = k*p + (1-k)*pd
+
+      // gradually increase force (for tuning )
+      double kMaxForce{20.};
   };
 
   // construct, run primitives

@@ -221,7 +221,7 @@ namespace franka_motion_primitive{
       for (size_t i=0; i<6; ++i) {
         pub_state_.msg_.f_filter[i] = s.f[i];
         pub_state_.msg_.f[i] = f[i] - f0_[i];
-        pub_state_.msg_.f_ee[i] = f_ee[i];
+        pub_state_.msg_.f_ee[i] = s.f_ee[i];
       }
       pub_state_.unlockAndPublish();
     }

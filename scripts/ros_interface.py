@@ -7,8 +7,7 @@ from franka_motion_primitive.msg import\
 
 from franka_motion_primitive.srv import *
 
-from franka_controllers.msg import HybridControllerState
-
+from franka_controllers.msg import HybridControllerState, Gain
 class RosInterface:
     def __init__(self):
         rospy.init_node("ros_interface")
@@ -16,12 +15,16 @@ class RosInterface:
         # primitive publish
         self.pub_prime_ = rospy.Publisher("/motion_generator/run_primitive", RunPrimitiveCommand, queue_size=1)
 
+        # set gain publisher
+        self.pub_set_gain_ = rospy.Publisher(
+            "hybrid_controller/gain_config", Gain, queue_size=1)
+
         # state subscriber
         sub_state_topic = "/hybrid_controller/state"
         self.sub_state = rospy.Subscriber(sub_state_topic, HybridControllerState,
                             self._sub_state_callback)
 
-        self.serv_set_init_force = rospy.ServiceProxy("set_initial_force", SetInitialForce)
+        self.serv_set_init_force = rospy.ServiceProxy("/motion_generator/set_initial_force", SetInitialForce)
 
         self._state = {
             "t": None,
@@ -44,13 +47,22 @@ class RosInterface:
         self._state["qd"] = np.array(msg.qd)
 
     def set_init_force(self):
-        rospy.wait_for_service("set_initial_force")
+        print("start calling service")
+        rospy.wait_for_service("/motion_generator/set_initial_force")
         try:
             res = self.serv_set_init_force()
             if res.success == 1:
                 print("Set init force success")
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
+        print("end calling service")
+
+    def set_gain(self, kp, kd):
+        gain_msg = Gain()
+        gain_msg.kp = kp
+        gain_msg.kd = kd
+        gain_msg.kDefineDamping = 1
+        self.pub_set_gain_.publish(gain_msg)
 
     def publish(self, cmd):
         self.pub_prime_.publish(cmd)

@@ -65,3 +65,11 @@ The ideas for implementation is based on `ros_control` framework
         - otherwise the old control law is incorrect and much works need to be done to modify both the control law and admittance motion
 
         - IDEA to test Jacobian: J_K^O = [R, 0; 0, R] * J_K^K -> compare with zeroJacobian
+
+# 3/8
+- can't fully insert reason
+    - biased torque is wrong
+
+- tradeoff: damping increase -> increase unstability, but non-uniform motion
+
+- kd_rot up to 0.9 still stable and the robot is very light
