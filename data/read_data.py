@@ -5,7 +5,7 @@ import transforms3d.quaternions as Q
 import numpy as np
 import matplotlib.pyplot as plt
 
-FILE_NAME = "data_12_22_01.json"
+FILE_NAME = "data_12_13_01.json"
 
 # calculate [x] of R^3 vector
 def cross(x):
@@ -26,7 +26,7 @@ def filter(x, alpha):
 
     return x_filter
 
-def dft(x):
+def dft(x, legend=None):
     x = x.T
     N = len(x)
     fig, (ax1, ax2) = plt.subplots(2, 1)
@@ -39,8 +39,8 @@ def dft(x):
 
     # x_freq[np.argmax(x_freq)] = 0
     ax2.plot(np.array(range(0, N)) / float(N) * 2000, abs(x_freq))
-
-    plt.show()
+    if legend is not None:
+        ax1.legend(legend)
 
 def analyze_force(d):
     f = [k[1] for k in d["f"]]
@@ -61,7 +61,7 @@ def analyze_force(d):
     dft(f_compare)
 
 def base_ee_compare(d):
-    idx = 4
+    idx = 3
     f = [k[1] for k in d["f"]]
     f = np.array(f)
     f_ee = [k[1] for k in d["f_ee"]]
@@ -71,8 +71,9 @@ def base_ee_compare(d):
     print(len(f), len(f_ee))
 
     f_compare = np.vstack((f[:N, idx], f_ee[:N, idx]))
-    dft(f_compare)
-
+    dft(f_compare, ["f", "f_ee"])
+    dft(f[:N, 2].reshape((1, N)))
+    plt.show()
     # fig, ax = plt.subplots(1, 1)
     # ax.plot(range(0, len(f)), f[:, 4])
     # ax.plot(range(0, len(f_ee)), f_ee[:, 4])
@@ -133,5 +134,5 @@ if __name__ == '__main__':
 
     d = read_data(file)
     # analyze_force(d)
-    # base_ee_compare(d)
-    transform_ee(d)
+    base_ee_compare(d)
+    # transform_ee(d)

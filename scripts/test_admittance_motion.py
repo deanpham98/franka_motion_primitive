@@ -39,7 +39,6 @@ class TestAdmittanceMotion:
         cmd.admittance_motion_param.z_thresh = -1.
         self.ros_interface.publish(cmd)
 
-
 if __name__ == '__main__':
     test = TestAdmittanceMotion()
     # test.test_null_cmd()

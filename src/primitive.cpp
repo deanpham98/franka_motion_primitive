@@ -242,9 +242,17 @@ namespace franka_motion_primitive{
   }
 
   void ConstantVelocity::check_terminate(Status& status, const State& state){
+    // quat to rotatiion matrix
+    Matrix3d R(state.pose.q);
+
+    // transofrm fe to f0
+    Vector6d f0;
+    f0.head(3) = R*state.f_ee.head(3);
+    f0.tail(3) = R*state.f_ee.tail(3);
+
     double f_proj;
     // project external force to move direction
-    f_proj= state.f.adjoint()*move_dir_;
+    f_proj= f0.adjoint()*move_dir_;
 
     if (t_max_ < 0) {status = Status::TIMEOUT; return;}
     else if (f_proj > f_thresh_) {

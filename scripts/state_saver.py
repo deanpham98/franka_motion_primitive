@@ -16,7 +16,8 @@ class FrankaStateSaver:
             "f": [],
             "f_filter": [],
             "f_ee": [],
-            "jacobian": []
+            "jacobian": [],
+            "body_jacobian": []
         }
 
         # state subscriber
@@ -37,6 +38,7 @@ class FrankaStateSaver:
             self._data["q"].append([msg.time, msg.q])
             self._data["qd"].append([msg.time, msg.qd])
             self._data["jacobian"].append([msg.time, msg.jacobian])
+            self._data["body_jacobian"].append([msg.time, msg.body_jacobian])
 
     def _sub_motion_gen_callback(self, msg):
         if self._record:

@@ -4,7 +4,7 @@ import rospkg
 import transforms3d.quaternions as Q
 from openravepy import *
 import numpy as np
-from read_data import read_data
+from read_data import read_data, cross
 
 FILE_NAME = "data_12_35_01.json"
 
@@ -62,6 +62,10 @@ def compare_jacobian(d):
     tJ = np.array([k[0] for k in d["jacobian"]])
     J = np.array(J)
 
+    Jb = [k[1] for k in d["body_jacobian"]]
+    tJb = np.array([k[0] for k in d["body_jacobian"]])
+    Jb = np.array(J)
+
     p = [k[1] for k in d["p"]]
     tp = np.array([k[0] for k in d["p"]])
     p = np.array(p)
@@ -71,10 +75,11 @@ def compare_jacobian(d):
     q = np.array(q)
 
     # align signal
-    t = [tJ, tp, tq]
-    N_sig = (len(tJ), len(tp), len(tq))
+    t = [tJ, tJb, tp, tq]
+    N_sig = (len(tJ), len(tJb), len(tp), len(tq))
     main_sig, N = np.argmin(N_sig), np.min(N_sig)
     J_al = np.zeros((N, 42))
+    Jb_al = np.zeros((N, 42))
     p_al = np.zeros((N, 3))
     q_al = np.zeros((N, 4))
 
@@ -86,26 +91,45 @@ def compare_jacobian(d):
             J_al[i, :] = J[i, :]
 
         if main_sig != 1:
+            idx = np.argmin(np.abs(tJb - ti))
+            Jb_al[i, :] = Jb[idx, :]
+        else:
+            Jb_al[i, :] = Jb[i, :]
+
+        if main_sig != 2:
             idx = np.argmin(np.abs(tp - ti))
             p_al[i, :] = p[idx, :]
         else:
             p_al[i, :] = p[i, :]
 
-        if main_sig != 2:
+        if main_sig != 3:
             idx = np.argmin(np.abs(tq - ti))
             q_al[i, :] = q[idx, :]
         else:
             q_al[i, :] = q[i, :]
 
-    franka = RaveFranka()
-    p1 = p_al[COMPARE_IDX]
-    J1 = J_al[COMPARE_IDX].reshape((7, 6)).T
-    q1 = q_al[COMPARE_IDX]
-    theta = franka.ik(p1, q1)
-    print(theta)
-    J_rave = franka.get_jacobian(theta)
-    print(J1, J_rave)
-    print((J1 - J_rave) / J_rave * 100)
+    # franka = RaveFranka()
+    J1 = J_al[COMPARE_IDX, :].reshape((7, 6)).T
+    Jb1 = J_al[COMPARE_IDX, :].reshape((7, 6)).T
+    p1 = p_al[COMPARE_IDX, :]
+    q1 = q_al[COMPARE_IDX, :]
+    R1 = Q.quat2mat(q1)
+    # theta = franka.ik(p1, q1)
+    # print(theta)
+    # J_rave = franka.get_jacobian(theta)
+    # print(J1, J_rave)
+    # print((J1 - J_rave) / J_rave * 100)
+
+    Jtrans1 = np.zeros_like(J1)
+    Jtrans1[:3, :] = R1.dot(Jb1[:3, :])
+    Jtrans1[3:, :] = R1.dot(Jb1[3:, :])
+
+    print(Jtrans1 - J1)
+
+    Jtrans2 = np.zeros_like(J1)
+    Jtrans2[3:, :] = R1.dot(Jb1[3:, :])
+    Jtrans2[:3, :] = R1.dot(Jb1[:3, :]) + cross(x).dot(Jtrans2[3:, :])
+    print(Jtrans2 - J1)
 
 if __name__ == '__main__':
     r = rospkg.RosPack()
