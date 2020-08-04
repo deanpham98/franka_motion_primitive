@@ -26,7 +26,7 @@ class RosInterface:
 
         # service
         self.serv_set_init_force = rospy.ServiceProxy("/motion_generator/set_initial_force", SetInitialForce)
-        self.serv_run_primitive = rospy.ServiceProxxy("/motion_generator/run_primitive", RunPrimitive)
+        self.serv_run_primitive = rospy.ServiceProxy("/motion_generator/run_primitive", RunPrimitive)
 
         self._state = {
             "t": None,
@@ -90,6 +90,7 @@ class RosInterface:
         p.timeout = 5.
         p.fd = np.zeros(6)
 
+        self.cmd.time = rospy.Time.now().to_sec()
         self.cmd.move_to_pose_param = p
         return self.cmd
 
@@ -105,8 +106,9 @@ class RosInterface:
         p.timeout = 1.
         p.f_thresh = 0.
         p.fd = np.array([0. ,0. ,0., 0., 0., 0.])
-        self.cmd.constant_velocity_param = p
 
+        self.cmd.time = rospy.Time.now().to_sec()
+        self.cmd.constant_velocity_param = p
         return self.cmd
 
     def get_admittance_motion_cmd(self):
@@ -117,6 +119,7 @@ class RosInterface:
         p.kd = np.zeros(6)
         p.fd = np.zeros(6)
         p.timeout = 1
+        self.cmd.time = rospy.Time.now().to_sec()
         self.cmd.admittance_motion_param = p
         return self.cmd
 
@@ -124,10 +127,10 @@ class RosInterface:
         rospy.wait_for_service("/motion_generator/run_primitive")
         try:
             res = self.serv_run_primitive(cmd)
-            return res.status, res.time - cmd.time
+            return res.status, res.time
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
-
+            return None, None
 
     # move to pose defined in base frame
     # quat [w, x, y, z]
@@ -138,4 +141,4 @@ class RosInterface:
         cmd.move_to_pose_param.target_pose.quat = quat
         cmd.move_to_pose_param.speed_factor = speed_factor
 
-        self.publish(cmd)
+        self.run_primitive(cmd)

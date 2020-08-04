@@ -359,16 +359,21 @@ namespace franka_motion_primitive{
   bool MotionGenerator::run_primitive(
         RunPrimitive::Request& req, RunPrimitive::Response& res){
     target_primitive_type_ = req.type;
-    ROS_INFO_STREAM("run primitive request received with primitive type " << target_primitive_type_);
+    ROS_INFO_STREAM("run primitive request received with primitive type " << int(target_primitive_type_));
     service2PrimitiveParam(primitive_param_, req);
     kRunPrimitiveReq = true;
 
-    if (kRunPrimitiveReq == false && execution_status_ != Status::EXECUTING) {
-      res.time = ros::Time::now().toSec() - req.time;
-      if (execution_status_ == Status::TIMEOUT) {res.status = PrimitiveStatus::TIMEOUT;}
-      else {res.status = PrimitiveStatus::SUCCESS;}
-      return true;
+    // sleep rate
+    ros::Rate r(100);
+    while (kRunPrimitiveReq == true || execution_status_ == Status::EXECUTING) {
+      r.sleep();
     }
+    res.time = ros::Time::now().toSec() - req.time;
+
+    if (execution_status_ == Status::TIMEOUT) {res.status = PrimitiveStatus::TIMEOUT;}
+    else {res.status = PrimitiveStatus::SUCCESS;}
+    ROS_INFO("done runnign service");
+    return true;
   }
 
   void MotionGenerator::service2PrimitiveParam(ParamMap& out, RunPrimitive::Request& req){

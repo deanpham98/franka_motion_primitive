@@ -3,8 +3,8 @@ import numpy as np
 import transforms3d.quaternions as Q
 from ros_interface import RosInterface
 
-HOLE_ROTX_ERROR = -1. # deg
-HOLE_ROTY_ERROR = 1. # deg
+HOLE_ROTX_ERROR = 1.5 # deg
+HOLE_ROTY_ERROR = 1.5 # deg
 
 def run_node1(Thole, init_angle, speed_factor=0.2):
     pass
@@ -36,7 +36,7 @@ def run_sequence():
     p0[2] += 0.005
     q0 = Q.mat2quat(Tee[:3, :3])
 
-    raw_input("press enter")
+    # raw_input("press enter")
     ros_interface.move_to_pose(p0, q0, 0.2)
     time.sleep(1.)
     ros_interface.set_init_force()
@@ -53,7 +53,7 @@ def run_sequence():
     q1 = Q.qmult(qtilt, qcur)
 
     speed_factor=0.2
-    raw_input("press enter")
+    # raw_input("press enter")
     ros_interface.move_to_pose(p1, q1, speed_factor=speed_factor)
 
     # step 2
@@ -65,7 +65,7 @@ def run_sequence():
     cmd.constant_velocity_param.timeout = 2.
     cmd.constant_velocity_param.f_thresh = 5.
 
-    raw_input("press enter")
+    # raw_input("press enter")
     ros_interface.run_primitive(cmd)
     # step 3
     cmd = ros_interface.get_constant_velocity_cmd()
@@ -75,7 +75,7 @@ def run_sequence():
     # move for 1 sec
     cmd.constant_velocity_param.timeout = 5.
     cmd.constant_velocity_param.f_thresh = 5.
-    raw_input("press enter")
+    # raw_input("press enter")
     ros_interface.run_primitive(cmd)
 
     # step 4 - rotate util contact
@@ -86,7 +86,7 @@ def run_sequence():
     # move for 1 sec
     cmd.constant_velocity_param.timeout = 15.
     cmd.constant_velocity_param.f_thresh = 0.7
-    raw_input("press enter")
+    # raw_input("press enter")
     ros_interface.run_primitive(cmd)
 
     # step 5 - admittance motion
@@ -97,9 +97,9 @@ def run_sequence():
     time.sleep(0.5)
 
     # with admittance
-    # kd = np.array([0.015, 0.015, 0.015, 0.9, 0.9, 0.5])
+    kd = np.array([0.015, 0.015, 0.015, 0.9, 0.9, 0.5])
     # only push down
-    kd = np.zeros(6)
+    # kd = np.zeros(6)
 
     fd = np.array([0, 0, -8.] + [0.]*3)
     timeout = 10.
@@ -108,7 +108,7 @@ def run_sequence():
     cmd.admittance_motion_param.timeout = timeout
     cmd.admittance_motion_param.fd = fd
     cmd.admittance_motion_param.z_thresh = Tee[2, 3] - 0.02*0.95
-    raw_input("press enter")
+    # raw_input("press enter")
     ros_interface.run_primitive(cmd)
 
 if __name__ == '__main__':
