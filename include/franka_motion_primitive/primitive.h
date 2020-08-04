@@ -199,7 +199,10 @@ namespace franka_motion_primitive{
       const double kAlphaStop{0.95}; // p = k*p + (1-k)*pd
 
       // gradually increase force (for tuning )
-      double kMaxForce{20.};
+      double kMaxForce{-20.};
+
+      // store value of t_max
+      double timeout_;
   };
 
   // construct, run primitives

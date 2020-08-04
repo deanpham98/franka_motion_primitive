@@ -3,7 +3,7 @@ import numpy as np
 import transforms3d.quaternions as Q
 from ros_interface import RosInterface
 
-HOLE_ROTX_ERROR = 1. # deg
+HOLE_ROTX_ERROR = -1. # deg
 HOLE_ROTY_ERROR = 1. # deg
 
 def run_node1(Thole, init_angle, speed_factor=0.2):
@@ -37,7 +37,7 @@ def run_sequence():
     q0 = Q.mat2quat(Tee[:3, :3])
 
     raw_input("press enter")
-    ros_interface.move_to_pose(p0, q0, 0.1)
+    ros_interface.move_to_pose(p0, q0, 0.2)
     time.sleep(1.)
     ros_interface.set_init_force()
 
@@ -46,7 +46,7 @@ def run_sequence():
     p1[2] += 0.01
     p1[0] += 0.005
 
-    angle = -0.175
+    angle = -0.13
     axis = np.array([0., 1., 0])
     qtilt = Q.axangle2quat(axis, angle)
     qcur = Q.mat2quat(Tee[:3, :3])
@@ -103,7 +103,7 @@ def run_sequence():
     cmd.admittance_motion_param.kd = kd
     cmd.admittance_motion_param.timeout = timeout
     cmd.admittance_motion_param.fd = fd
-    cmd.admittance_motion_param.z_thresh = Tee[3, 2] - 0.02*0.95
+    cmd.admittance_motion_param.z_thresh = Tee[2, 3] - 0.02*0.95
     raw_input("press enter")
     ros_interface.publish(cmd)
 

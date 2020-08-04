@@ -73,3 +73,10 @@ The ideas for implementation is based on `ros_control` framework
 - tradeoff: damping increase -> increase unstability, but non-uniform motion
 
 - kd_rot up to 0.9 still stable and the robot is very light
+
+- NOTE for improve:
+    - implement service instead of publisher??
+
+- is the insertino successful because of large insertion force or because the admittance law?
+
+- is the external force estimation scheme on franka accurate?

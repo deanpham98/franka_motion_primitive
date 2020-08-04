@@ -57,7 +57,9 @@ class FrankaStateSaver:
             "f": [],
             "f_filter": [],
             "f_ee": [],
-            "jacobian": []
+            "jacobian": [],
+            "body_jacobian": [],
+
         }
 
     def save(self, file_path):

@@ -322,6 +322,7 @@ namespace franka_motion_primitive{
       pd_ = s.pose.p;
       qd_ = s.pose.q;
       fd_ = fd_base_;
+      timeout_ = t_max_;
     }
 
     // update time
@@ -378,9 +379,9 @@ namespace franka_motion_primitive{
         cmd.v = Vector6d::Zero();
       }
       // update dsired force
-      if (fd_base_(2) > 0) {
-        if (t_max_ > dt)
-          fd_(2) = fd_base_(2) + dt/t_max_*(kMaxForce - fd_base_(2));
+      if (fd_base_(2) != 0) {
+        if (t_exec_ < timeout_)
+          fd_(2) = fd_base_(2) + t_exec_/timeout_*(kMaxForce - fd_base_(2));
         else fd_(2) = kMaxForce;
       }
     }
