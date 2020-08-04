@@ -56,11 +56,13 @@ add_message_files(
   ConstantVelocityParam.msg
   AdmittanceMotionParam.msg
   MotionGeneratorState.msg
+  PrimitiveStatus.msg
 )
 
 ## Generate services in the 'srv' folder
 add_service_files(FILES
   SetInitialForce.srv
+  RunPrimitive.srv
 )
 
 ## Generate actions in the 'action' folder

@@ -8,7 +8,7 @@ class TestConstantVelocity:
 
     def test_null_cmd(self):
         cmd = self.ros_interface.get_constant_velocity_cmd()
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
     def test_translation(self):
         cmd = self.ros_interface.get_constant_velocity_cmd()
@@ -18,7 +18,7 @@ class TestConstantVelocity:
         # move for 1 sec
         cmd.constant_velocity_param.timeout = 0.5
         cmd.constant_velocity_param.f_thresh = 100.
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
     def test_rotation(self):
         cmd = self.ros_interface.get_constant_velocity_cmd()
@@ -28,7 +28,7 @@ class TestConstantVelocity:
         # move for 1 sec
         cmd.constant_velocity_param.timeout = 3
         cmd.constant_velocity_param.f_thresh = 100.
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
     def test_move_to_contact(self):
         target_pose = np.array([[0.980334, 0.197291, -0.00146722, 0.530611],
@@ -52,7 +52,7 @@ class TestConstantVelocity:
         # move for 1 sec
         cmd.constant_velocity_param.timeout = 10.
         cmd.constant_velocity_param.f_thresh = 5.
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
     # to be call after test_move_to_contact
     def test_sliding(self):
@@ -63,7 +63,7 @@ class TestConstantVelocity:
         cmd.constant_velocity_param.f_thresh = 5.
         cmd.constant_velocity_param.fd = np.array([0, 0, -10, 0., 0, 0])
         cmd.constant_velocity_param.timeout = 2.
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
     def test_force_control(self):
         cmd = self.ros_interface.get_constant_velocity_cmd()
@@ -73,7 +73,7 @@ class TestConstantVelocity:
         cmd.constant_velocity_param.f_thresh = 10.
         cmd.constant_velocity_param.fd = np.array([0, 0, -10, 0., 0, 0])
         cmd.constant_velocity_param.timeout = 5.
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
 
     def test_task_frame(self):
@@ -87,7 +87,7 @@ class TestConstantVelocity:
         # move for 1 sec
         cmd.constant_velocity_param.timeout = 1.
         cmd.constant_velocity_param.f_thresh = 5.
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
 if __name__ == '__main__':
     test = TestConstantVelocity()

@@ -9,7 +9,7 @@ class TestAdmittanceMotion:
     def test_null_cmd(self):
         cmd = self.ros_interface.get_admittance_motion_cmd()
         cmd.admittance_motion_param.timeout = 10
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
     def test_interaction(self):
 
@@ -37,7 +37,7 @@ class TestAdmittanceMotion:
         cmd.admittance_motion_param.timeout = timeout
         cmd.admittance_motion_param.fd = fd
         cmd.admittance_motion_param.z_thresh = -1.
-        self.ros_interface.publish(cmd)
+        self.ros_interface.run_primitive(cmd)
 
 if __name__ == '__main__':
     test = TestAdmittanceMotion()

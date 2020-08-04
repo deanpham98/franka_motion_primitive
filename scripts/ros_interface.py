@@ -24,7 +24,9 @@ class RosInterface:
         self.sub_state = rospy.Subscriber(sub_state_topic, HybridControllerState,
                             self._sub_state_callback)
 
+        # service
         self.serv_set_init_force = rospy.ServiceProxy("/motion_generator/set_initial_force", SetInitialForce)
+        self.serv_run_primitive = rospy.ServiceProxxy("/motion_generator/run_primitive", RunPrimitive)
 
         self._state = {
             "t": None,
@@ -73,8 +75,9 @@ class RosInterface:
     def get_quat(self):
         return self._state["q"].copy()
 
+    # DEPRECATED
     def get_move_to_pose_cmd(self):
-        self.cmd = RunPrimitiveCommand()
+        self.cmd = RunPrimitiveRequest()
         self.cmd.type = PrimitiveType.MoveToPose
         p = MoveToPoseParam()
         p.task_frame.pos = np.zeros(3)
@@ -91,7 +94,7 @@ class RosInterface:
         return self.cmd
 
     def get_constant_velocity_cmd(self):
-        self.cmd = RunPrimitiveCommand()
+        self.cmd = RunPrimitiveRequest()
         self.cmd.type = PrimitiveType.ConstantVelocity
 
         p = ConstantVelocityParam()
@@ -107,7 +110,7 @@ class RosInterface:
         return self.cmd
 
     def get_admittance_motion_cmd(self):
-        self.cmd = RunPrimitiveCommand()
+        self.cmd = RunPrimitiveRequest()
         self.cmd.type = PrimitiveType.AdmittanceMotion
 
         p = AdmittanceMotionParam()
@@ -116,6 +119,15 @@ class RosInterface:
         p.timeout = 1
         self.cmd.admittance_motion_param = p
         return self.cmd
+
+    def run_primitive(self, cmd):
+        rospy.wait_for_service("/motion_generator/run_primitive")
+        try:
+            res = self.serv_run_primitive(cmd)
+            return res.status, res.time - cmd.time
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+
 
     # move to pose defined in base frame
     # quat [w, x, y, z]

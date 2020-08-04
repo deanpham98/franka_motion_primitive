@@ -4,6 +4,7 @@
 
 #include <franka_motion_primitive/motion_generator.h>
 #include <franka_motion_primitive/PrimitiveType.h>
+#include <franka_motion_primitive/PrimitiveStatus.h>
 
 namespace franka_motion_primitive{
 
@@ -75,6 +76,10 @@ namespace franka_motion_primitive{
       nh.advertiseService<SetInitialForce::Request, SetInitialForce::Response>
         ("set_initial_force", boost::bind(&MotionGenerator::set_initial_force, this, _1, _2));
 
+    run_primitive_serv_ =
+      nh.advertiseService<RunPrimitive::Request, RunPrimitive::Response>
+        ("run_primitive", boost::bind(&MotionGenerator::run_primitive, this, _1, _2));
+
     // Dynamic reconfigure
     dynamic_admittance_node_ =
       ros::NodeHandle("dynamic_reconfigure_admittance_config");
@@ -129,6 +134,7 @@ namespace franka_motion_primitive{
     execution_status_ = Status::EXECUTING;
     kReceiveCommand = false;
     kSetInitialForce = false;
+    kRunPrimitiveReq = false;
   }
 
   void MotionGenerator::update(const ros::Time& t_now, const ros::Duration& period) {
@@ -140,6 +146,17 @@ namespace franka_motion_primitive{
       main_primitive_ = primitive_container_[target_primitive_type_];
       main_primitive_->configure(primitive_param_);
       kReceiveCommand = false;
+    }
+
+    // configure primtiive
+    if (kRunPrimitiveReq == true && execution_status_ != Status::EXECUTING) {
+      // TODO: set controller param (publish to hybrid_controller)
+
+      // configure primitive
+      main_primitive_ = primitive_container_[target_primitive_type_];
+      main_primitive_->configure(primitive_param_);
+      execution_status_ = Status::EXECUTING;
+      kRunPrimitiveReq = false;
     }
 
     // admittance param
@@ -337,6 +354,96 @@ namespace franka_motion_primitive{
       kd_admittance_dynamic_(i+3) = config.kd_rot;
     }
     kReceiveDynamicServer = true;
+  }
+
+  bool MotionGenerator::run_primitive(
+        RunPrimitive::Request& req, RunPrimitive::Response& res){
+    target_primitive_type_ = req.type;
+    ROS_INFO_STREAM("run primitive request received with primitive type " << target_primitive_type_);
+    service2PrimitiveParam(primitive_param_, req);
+    kRunPrimitiveReq = true;
+
+    if (kRunPrimitiveReq == false && execution_status_ != Status::EXECUTING) {
+      res.time = ros::Time::now().toSec() - req.time;
+      if (execution_status_ == Status::TIMEOUT) {res.status = PrimitiveStatus::TIMEOUT;}
+      else {res.status = PrimitiveStatus::SUCCESS;}
+      return true;
+    }
+  }
+
+  void MotionGenerator::service2PrimitiveParam(ParamMap& out, RunPrimitive::Request& req){
+    out.clear();
+    if (target_primitive_type_ == PrimitiveType::MoveToPose){
+      Vector3d task_frame_pos, target_pos;
+      Quaterniond task_frame_quat, target_quat;
+      Vector6d fd;
+
+      // task frame
+      task_frame_pos = Vector3d::Map(req.move_to_pose_param.task_frame.pos.data());
+      // task_frame_quat = Quaterniond(req.move_to_pose_param.task_frame.quat.data());
+      task_frame_quat = Quaterniond(req.move_to_pose_param.task_frame.quat[0],
+                                    req.move_to_pose_param.task_frame.quat[1],
+                                    req.move_to_pose_param.task_frame.quat[2],
+                                  req.move_to_pose_param.task_frame.quat[3]);
+
+      // target pose
+      target_pos = Vector3d::Map(req.move_to_pose_param.target_pose.pos.data());
+      // target_quat = Quaterniond(req.move_to_pose_param.target_pose.quat.data());
+      target_quat = Quaterniond(req.move_to_pose_param.target_pose.quat[0],
+                                    req.move_to_pose_param.target_pose.quat[1],
+                                    req.move_to_pose_param.target_pose.quat[2],
+                                  req.move_to_pose_param.target_pose.quat[3]);
+      // desired force
+      fd = Vector6d::Map(req.move_to_pose_param.fd.data());
+
+      out["task_frame_pos"] = task_frame_pos;
+      out["task_frame_quat"] = task_frame_quat;
+      out["target_pos"] = target_pos;
+      out["target_quat"] = target_quat;
+      out["target_force"] = fd;
+      out["timeout"] = req.move_to_pose_param.timeout;
+      out["speed_factor"] = req.move_to_pose_param.speed_factor;
+      out["controller_gain_msg"] = req.move_to_pose_param.controller_gain;
+    }
+    else if (target_primitive_type_ == PrimitiveType::ConstantVelocity) {
+      Vector3d task_frame_pos;
+      Quaterniond task_frame_quat;
+      Vector6d move_dir, fd;
+
+      // task frame
+      task_frame_pos = Vector3d::Map(req.constant_velocity_param.task_frame.pos.data());
+      // task_frame_quat = Quaterniond(req.constant_velocity_param.task_frame.quat.data());
+      task_frame_quat = Quaterniond(req.constant_velocity_param.task_frame.quat[0],
+                                    req.constant_velocity_param.task_frame.quat[1],
+                                    req.constant_velocity_param.task_frame.quat[2],
+                                  req.constant_velocity_param.task_frame.quat[3]);
+
+      // desired force
+      fd = Vector6d::Map(req.constant_velocity_param.fd.data());
+
+      // move_dir
+      move_dir = Vector6d::Map(req.constant_velocity_param.direction.data());
+
+      out["task_frame_pos"] = task_frame_pos;
+      out["task_frame_quat"] = task_frame_quat;
+      out["direction"] = move_dir;
+      out["target_force"] = fd;
+      out["speed_factor"] = req.constant_velocity_param.speed_factor;
+      out["timeout"] = req.constant_velocity_param.timeout;
+      out["f_thresh"] = req.constant_velocity_param.f_thresh;
+
+    }
+    else if (target_primitive_type_ == PrimitiveType::AdmittanceMotion) {
+      Vector6d fd, kd;
+      kd = Vector6d::Map(req.admittance_motion_param.kd.data());
+      fd = Vector6d::Map(req.admittance_motion_param.fd.data());
+
+      out["kd"] = kd;
+      out["fd"] = fd;
+      out["timeout"] = req.admittance_motion_param.timeout;
+      out["z_thresh"] = req.admittance_motion_param.z_thresh;
+
+    }
   }
 }
 PLUGINLIB_EXPORT_CLASS(franka_motion_primitive::MotionGenerator,

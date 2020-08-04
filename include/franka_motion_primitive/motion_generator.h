@@ -12,8 +12,10 @@
 #include <franka_motion_primitive/primitive.h>
 #include <franka_motion_primitive/PrimitiveState.h>
 #include <franka_motion_primitive/RunPrimitiveCommand.h>
-#include <franka_motion_primitive/SetInitialForce.h>
 #include <franka_motion_primitive/MotionGeneratorState.h>
+// service
+#include <franka_motion_primitive/SetInitialForce.h>
+#include <franka_motion_primitive/RunPrimitive.h>
 
 // dynamic reconfigure
 #include <dynamic_reconfigure/server.h>
@@ -95,6 +97,14 @@ namespace franka_motion_primitive {
     bool set_initial_force(SetInitialForce::Request& req,
                             SetInitialForce::Response& res );
     bool kSetInitialForce;
+
+    // run primitive service
+    ros::ServiceServer run_primitive_serv_;
+    bool run_primitive(RunPrimitive::Request& req,
+                      RunPrimitive::Response& res);
+    bool kRunPrimitiveReq;
+
+    void service2PrimitiveParam(ParamMap& out, RunPrimitive::Request& req);
 
     // dynamic reconfigure
     std::unique_ptr<dynamic_reconfigure::Server<AdmittanceConfig>>

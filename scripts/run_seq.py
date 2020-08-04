@@ -66,7 +66,7 @@ def run_sequence():
     cmd.constant_velocity_param.f_thresh = 5.
 
     raw_input("press enter")
-    ros_interface.publish(cmd)
+    ros_interface.run_primitive(cmd)
     # step 3
     cmd = ros_interface.get_constant_velocity_cmd()
     cmd.constant_velocity_param.speed_factor = 0.01
@@ -76,18 +76,18 @@ def run_sequence():
     cmd.constant_velocity_param.timeout = 5.
     cmd.constant_velocity_param.f_thresh = 5.
     raw_input("press enter")
-    ros_interface.publish(cmd)
+    ros_interface.run_primitive(cmd)
 
     # step 4 - rotate util contact
     cmd = ros_interface.get_constant_velocity_cmd()
     cmd.constant_velocity_param.speed_factor = 0.015
     cmd.constant_velocity_param.direction = np.array([0, 0, 0., 0, 1, 0])
-    cmd.constant_velocity_param.fd = np.array([0, 0, -5, 0 , 0,0 ])
+    cmd.constant_velocity_param.fd = np.array([-5, 0, -5, 0 , 0,0 ])
     # move for 1 sec
     cmd.constant_velocity_param.timeout = 15.
     cmd.constant_velocity_param.f_thresh = 0.7
     raw_input("press enter")
-    ros_interface.publish(cmd)
+    ros_interface.run_primitive(cmd)
 
     # step 5 - admittance motion
     ##  set controller gain
@@ -96,7 +96,11 @@ def run_sequence():
     ros_interface.set_gain(kp_controller, kd_controller)
     time.sleep(0.5)
 
-    kd = np.array([0.015, 0.015, 0.015, 0.9, 0.9, 0.5])
+    # with admittance
+    # kd = np.array([0.015, 0.015, 0.015, 0.9, 0.9, 0.5])
+    # only push down
+    kd = np.zeros(6)
+
     fd = np.array([0, 0, -8.] + [0.]*3)
     timeout = 10.
     cmd = ros_interface.get_admittance_motion_cmd()
@@ -105,8 +109,7 @@ def run_sequence():
     cmd.admittance_motion_param.fd = fd
     cmd.admittance_motion_param.z_thresh = Tee[2, 3] - 0.02*0.95
     raw_input("press enter")
-    ros_interface.publish(cmd)
-
+    ros_interface.run_primitive(cmd)
 
 if __name__ == '__main__':
     run_sequence()
