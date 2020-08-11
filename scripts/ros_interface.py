@@ -142,3 +142,5 @@ class RosInterface:
         cmd.move_to_pose_param.speed_factor = speed_factor
 
         self.run_primitive(cmd)
+
+    

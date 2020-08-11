@@ -12,11 +12,11 @@ class TestConstantVelocity:
 
     def test_translation(self):
         cmd = self.ros_interface.get_constant_velocity_cmd()
-        cmd.constant_velocity_param.speed_factor = 0.1
+        cmd.constant_velocity_param.speed_factor = 0.03
         cmd.constant_velocity_param.direction = np.array([0, 0., 1., 0, 0, 0])
 
         # move for 1 sec
-        cmd.constant_velocity_param.timeout = 0.5
+        cmd.constant_velocity_param.timeout = 1.5
         cmd.constant_velocity_param.f_thresh = 100.
         self.ros_interface.run_primitive(cmd)
 

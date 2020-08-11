@@ -6,8 +6,10 @@ from franka_controllers.msg import HybridControllerState
 from franka_motion_primitive.msg import MotionGeneratorState
 
 class FrankaStateSaver:
-    def __init__(self):
-        rospy.init_node("state_saver")
+    def __init__(self, run_node=True):
+        if run_node:
+            rospy.init_node("state_saver")
+            
         self._data = {
             "p": [],
             "pd": [],

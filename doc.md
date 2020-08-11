@@ -70,7 +70,7 @@ The ideas for implementation is based on `ros_control` framework
 - can't fully insert reason
     - biased torque is wrong
 
-- tradeoff: damping increase -> increase unstability, but non-uniform motion
+- tradeoff: damping increase -> increase unstability, but smoother motion
 
 - kd_rot up to 0.9 still stable and the robot is very light
 
@@ -80,3 +80,18 @@ The ideas for implementation is based on `ros_control` framework
 - is the insertino successful because of large insertion force or because the admittance law?
 
 - is the external force estimation scheme on franka accurate?
+
+# 4/8
+- test fixed sequence with square and triangle peg
+- parameter tuning?
+- find clearance by experiment (unknown error due to kinematic error)
+
+# 5/8
+- experiment 6/8
+    - run sequence for square and triangle peg
+    - estimate clearance for square and triangle peg-hole
+        - first test whether saver saves properly in estimate_clearance() function
+
+# 6/8
+- success for square but not for triangle
+- ~1mm clearance for triangle, 0.5mm for square

@@ -4,8 +4,10 @@ import json
 import transforms3d.quaternions as Q
 import numpy as np
 import matplotlib.pyplot as plt
+from criros.filters import ButterLowPass
 
-FILE_NAME = "data_12_13_01.json"
+FILE_NAME = "estimate_clearance_11_28_07.json"
+DATA_RATE = 500
 
 # calculate [x] of R^3 vector
 def cross(x):
@@ -59,6 +61,7 @@ def analyze_force(d):
     # dft(f[:, 3])
     # dft(f_filter[:, 3])
     dft(f_compare)
+    plt.show()
 
 def base_ee_compare(d):
     idx = 3
@@ -127,6 +130,58 @@ def transform_ee(d):
     plt.show()
     # print(len(f_ee), len(q))
 
+def plot_position(d, axis=0):
+    p = [k[1] for k in d["p"]]
+    p = np.array(p)
+
+    # filter = ButterLowPass(100, 500, 7)
+    # # filter.zi = np.zeros((3, 1))
+    # p_filter = filter(p[:, axis].reshape(1, len(p)))
+    # print(p_filter.shape)
+
+    fig, ax = plt.subplots()
+    ax.plot(range(len(p)), p[:, axis])
+    # ax.plot(range(p_filter.shape[1]), p_filter.T)
+    plt.show()
+
+def plot_position_error(d, axis=0):
+    p = [k[1] for k in d["p"]]
+    tp = [k[0] for k in d["p"]]
+    p = np.array(p)
+    pd = [k[1] for k in d["pd"]]
+    tpd = [k[0] for k in d["pd"]]
+    pd = np.array(pd)
+
+    p_align = np.zeros_like(pd)
+    tp_align_idx = []
+    for t in tpd:
+        k = np.argmin(np.abs(tp - t))
+        tp_align_idx.append(k)
+    p_align = p[tp_align_idx]
+
+    fig, ax = plt.subplots()
+    ax.plot(range(len(p_align)), p[:, axis] - pd[:, axis])
+    # ax.plot(range(p_filter.shape[1]), p_filter.T)
+    plt.show()
+
+
+def estimate_clearance(d):
+    p = [k[1] for k in d["p"]]
+    p = np.array(p)
+
+    # clearance x
+    maxx_idx = np.argmax(p[:, 0])
+    minx_idx = np.argmin(p[:, 0])
+    print(p[maxx_idx, 2], p[minx_idx, 2])
+
+    # clearance y
+    maxx_idx = np.argmax(p[:, 1])
+    minx_idx = np.argmin(p[:, 1])
+    print(p[maxx_idx, 2], p[minx_idx, 2])
+
+    # print("clearance x: {}".format(max(p[:, 0]) - min(p[:, 0])))
+    # print("clearance y: {}".format(max(p[:, 1]) - min(p[:, 1])))
+
 if __name__ == '__main__':
     r = rospkg.RosPack()
     pkg_dir = r.get_path("franka_motion_primitive")
@@ -134,5 +189,8 @@ if __name__ == '__main__':
 
     d = read_data(file)
     # analyze_force(d)
-    base_ee_compare(d)
+    # base_ee_compare(d)
     # transform_ee(d)
+    # plot_position(d, axis=1)
+    # estimate_clearance(d)
+    plot_position_error(d, axis=0)
