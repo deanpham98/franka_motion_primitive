@@ -13,16 +13,17 @@ namespace franka_motion_primitive{
       // cartesian velocity and acceleration limits
       Vector6d dx_max_ = (Vector6d() << 0.5, 0.5, 0.5, 1.0, 1.0, 1.0).finished();
       Vector6d ddx_max_ = (Vector6d() << 5, 5, 5, 10.0, 10.0, 10.0).finished();
+      // initial stiffness
+      Vector6d kp_init_ = (Vector6d() << 1000., 1000., 1000., 60., 60., 30).finished();
 
       // maximum execution time
       double t_max_;
 
       Pose task_frame_;
 
-      // controller parameters
-      // TODO: change to FrankaController::Gain
-      Vector6d Kp_;
-      Vector6d Kd_;
+      // controller stiffness and damping
+      Matrix6d Kp_;
+      Matrix6d Kd_;
 
       // initial state
       State s0_;
@@ -32,7 +33,12 @@ namespace franka_motion_primitive{
         t_exec_ = 0; t_max_ = 5.; Kp_.setIdentity(); Kd_.setIdentity();
         s0_.pose.p.setZero(); s0_.pose.q = Quaterniond(1., 0., 0., 0.);
         s0_.f.setZero(); s0_.v.setZero();
-        task_frame_.p.setZero(); task_frame_.q = Quaterniond(1., 0., 0., 0.);}
+        task_frame_.p.setZero(); task_frame_.q = Quaterniond(1., 0., 0., 0.);
+        // controller_gain_.kDefineDamping = 0;
+        // for (size_t i=0; i<6 ; i++){
+        //   controller_gain_.kp[i] = kp_init_(i);
+        // }
+      }
 
       // update control command and return the execution status of the primitive
       //    u = f(s, t) control input

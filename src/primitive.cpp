@@ -183,9 +183,9 @@ namespace franka_motion_primitive{
         cmd.v= vd_base_;
       }
       else {
-        pd_ = kAlphaStop*pd_ + (1-kAlphaStop)*ps_;
-        Quaterniond qslerp = qd_.slerp(1-kAlphaStop, qs_);
-        qd_ = qslerp;
+        // pd_ = kAlphaStop*pd_ + (1-kAlphaStop)*ps_;
+        // Quaterniond qslerp = qd_.slerp(1-kAlphaStop, qs_);
+        // qd_ = qslerp;
         cmd.v = Vector6d::Zero();
       }
     }
@@ -203,7 +203,8 @@ namespace franka_motion_primitive{
     // selection matrix
     cmd.S.setIdentity();
     for (size_t i = 0; i< 6; ++i){
-      if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+      // if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+      if (std::abs(fd_base_(i)) >= 1.) {cmd.S(i, i) = 0;}
     }
   }
 
@@ -229,10 +230,13 @@ namespace franka_motion_primitive{
     vd_base_.head(3) = R*ve_task.head(3);
     vd_base_.tail(3) = R*ve_task.tail(3);
     move_dir_ = vd_base_.normalized();
+    // std::cout << vd_base_ << std::endl;
 
     // transform to base frame
     fd_base_.head(3) = R*fd_.head(3);
     fd_base_.tail(3) = R*fd_.tail(3);
+
+    // std::cout << fd_base_ << std::endl;
 
     // reset time
     t_exec_ = 0.;
@@ -253,6 +257,8 @@ namespace franka_motion_primitive{
     double f_proj;
     // project external force to move direction
     f_proj= f0.adjoint()*move_dir_;
+
+    // std::cout << f_proj << std::endl;
 
     if (t_max_ < 0) {status = Status::TIMEOUT; return;}
     else if (f_proj > f_thresh_) {
@@ -379,11 +385,12 @@ namespace franka_motion_primitive{
         cmd.v = Vector6d::Zero();
       }
       // update dsired force
-      if (fd_base_(2) != 0) {
-        if (t_exec_ < timeout_)
-          fd_(2) = fd_base_(2) + t_exec_/timeout_*(kMaxForce - fd_base_(2));
-        else fd_(2) = kMaxForce;
-      }
+      // if (fd_base_(2) != 0) {
+      //   if (t_exec_ < timeout_)
+      //     fd_(2) = fd_base_(2) + t_exec_/timeout_*(kMaxForce - fd_base_(2));
+      //   else fd_(2) = kMaxForce;
+      // }
+      fd_ = fd_base_;
     }
     else {cmd.v = Vector6d::Zero();}
 

@@ -16,7 +16,7 @@ class TestConstantVelocity:
         cmd.constant_velocity_param.direction = np.array([0, 0., 1., 0, 0, 0])
 
         # move for 1 sec
-        cmd.constant_velocity_param.timeout = 1.5
+        cmd.constant_velocity_param.timeout = 2.5
         cmd.constant_velocity_param.f_thresh = 100.
         self.ros_interface.run_primitive(cmd)
 

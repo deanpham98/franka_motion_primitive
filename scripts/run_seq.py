@@ -16,16 +16,13 @@ HOLE_POSX_ERROR = 0.  # mm
 HOLE_POSY_ERROR = 0.  # mm
 HOLE_ROTX_ERROR = 0. # deg
 HOLE_ROTY_ERROR = 0. # deg
-HOLE_ROTZ_ERROR = 0. # deg
+HOLE_ROTZ_ERROR = 0.  # deg
 
-HOLE_SHAPE = "triangle"
+HOLE_SHAPE = "round"
 HOLE_DEPTH = 0.02
 
 if HOLE_SHAPE == "round":
-    T_HOLE = np.array([0.999276,-0.0322603,-0.0196635,0,\
-                    -0.0323633,-0.999454,-0.00494357,0,\
-                    -0.0194936,0.00557648,-0.999794,0,\
-                    0.530069,-0.0850753,0.150997,1]).reshape((4, 4)).T
+    T_HOLE = np.array([0.997444,0.0633262,-0.0328016,0,0.063392,-0.997979,0.000968749,0,-0.0326746,-0.00304569,-0.999461,0,0.529789,-0.087157,0.15136,1]).reshape((4, 4)).T
 
 elif HOLE_SHAPE == "square":
     T_HOLE = np.array([[0.774692,0.63229,-0.00649177,0,\
@@ -40,9 +37,9 @@ elif HOLE_SHAPE == "triangle":
                         0.534134,0.125966,0.143978,1]]).reshape((4, 4)).T
 
 # STEP 1
-# TILT_ANGLE = -7.5 # deg
+TILT_ANGLE = -7.5 # deg
 # triangle
-TILT_ANGLE = -3 # deg
+# TILT_ANGLE = -3 # deg
 S1 = 0.2  # speed factor
 
 # step 2
@@ -64,14 +61,14 @@ FT4 = 0.7
 T4 = 10.
 
 # step 5
-# KD5 = np.array([0.015, 0.015, 0.015, 0.9, 0.9, 0.5])
+KD5 = np.array([0.01, 0.01, 0.01, 0.5, 0.5, 0.3])
 # for square
-KD5 = np.array([0.01, 0.01, 0.01, 0.3, 0.3, 0.3])
+# KD5 = np.array([0.01, 0.01, 0.01, 0.3, 0.3, 0.3])
 FZD5 = 8.
 ZT = T_HOLE[2, 3] - HOLE_DEPTH*0.95
 T5 = 10.
 
-class Sequence:
+class Sequence(object):
     """
     T_hole: true pose of the hole
     """
@@ -172,6 +169,11 @@ class Sequence:
 
     # track 0 torque and force
     def step5(self, kd, fzd, z_thresh, timeout):
+        ##  set controller gain
+        kp_controller= np.array([500., 500., 500., 50., 50., 50.])
+        kd_controller = np.array([10.]*3 + [5.]*3)
+        self.ros_interface.set_gain(kp_controller, kd_controller)
+        time.sleep(0.5)
 
         cmd = self.ros_interface.get_admittance_motion_cmd()
         cmd.admittance_motion_param.kd = kd
@@ -225,110 +227,216 @@ class Sequence:
 
         print("run time: {}".format(time.time() - start))
 
-def run_sequence():
-    ros_interface = RosInterface()
+class TaskFrameSequence(Sequence):
+    def __init__(self, T_hole):
+        # super(TaskFrameSequence, self).__init__(T_hole)
+        super(TaskFrameSequence, self).__init__(T_hole)
 
-    Tee = np.array([0.999276,-0.0322603,-0.0196635,0,\
-        -0.0323633,-0.999454,-0.00494357,0,\
-        -0.0194936,0.00557648,-0.999794,0,\
-        0.530069,-0.0850753,0.150997,1]).reshape((4, 4)).T
+    def set_hole_pose_error(self, p, q):
+        super(TaskFrameSequence, self).set_hole_pose_error(p, q)
+        self.tf_pos = self.T_hole_hat[:3, 3]
+        self.hole_quat = Q.mat2quat(self.T_hole_hat[:3, :3])
+        qx = np.array([np.cos(np.pi/2), np.sin(np.pi/2), 0, 0])
+        self.tf_quat = Q.qmult(self.hole_quat, qx)
 
-    # add artificial error
-    axe = np.array([HOLE_ROTX_ERROR, HOLE_ROTY_ERROR, 0])* np.pi/180
-    thetae = np.linalg.norm(axe)
-    if thetae >= 1e-5:
-        axe = axe / thetae
-        qe = Q.axangle2quat(axe, thetae)
-        Re = Q.quat2mat(qe)
-        Tee[:3, :3] = Re.dot(Tee[:3, :3])
+    def step0(self, kp, kd, hole_pos_error, hole_rot_error):
+        # set hole pose error
+        self.set_hole_pose_error(hole_pos_error, hole_rot_error)
+        # set gain
+        kp = np.array([1000., 1000., 1000., 80., 80., 50.])
+        kd = 2*np.sqrt(kp)
+        self.ros_interface.set_gain(kp, kd)
+        time.sleep(0.5)
 
-    # step 0 calibration
-    kp = np.array([1000., 1000., 1000., 80., 80., 50.])
-    kd = 2*np.sqrt(kp)
-    ros_interface.set_gain(kp, kd)
-    time.sleep(0.5)
+        # move to above the hole
+        p0 = np.array([0, 0, 0.005])
+        q0 = np.array([0., 1., 0., 0])
 
-    p0 = Tee[:3, 3].copy()
-    p0[2] += 0.005
-    q0 = Q.mat2quat(Tee[:3, :3])
+        self.ros_interface.move_to_pose(p0, q0, 0.2, tf_pos=self.tf_pos, tf_quat=self.tf_quat)
+        time.sleep(0.5)
 
-    ros_interface.move_to_pose(p0, q0, 0.2)
-    time.sleep(1.)
+        # calib initial force
+        self.ros_interface.set_init_force()
 
-    # calib initial force
-    ros_interface.set_init_force()
+    # approach the hole
+    def step1(self, tilt_angle, speed_factor=0.2):
+        p1 = np.zeros(3)
+        p1[2] += 0.01
+        # for square
+        # p1[1] +=0.01
+        p1[0] += 0.005
 
-    # step 1
-    p1 = Tee[:3, 3].copy()
-    p1[2] += 0.01
-    p1[0] += 0.005
+        axis = np.array([0., 1., 0])
+        # for square peg
+        # axis = np.array([-1., 1., 0])
+        qtilt = Q.axangle2quat(axis, tilt_angle)
+        qtarget = np.array([0., 1., 0, 0])
+        q1 = Q.qmult(qtilt, qtarget)
+        self.ros_interface.move_to_pose(p1, q1, speed_factor=speed_factor, tf_pos=self.tf_pos, tf_quat=self.tf_quat)
 
-    angle = -0.13
-    axis = np.array([0., 1., 0])
-    qtilt = Q.axangle2quat(axis, angle)
-    qcur = Q.mat2quat(Tee[:3, :3])
-    q1 = Q.qmult(qtilt, qcur)
+    # move down in the z direction
+    def step2(self, speed_factor=0.01, f_thresh=5., timeout=2.):
+        cmd = self.ros_interface.get_constant_velocity_cmd()
+        cmd.constant_velocity_param.speed_factor = speed_factor
+        cmd.constant_velocity_param.direction = np.array([0, 0, -1., 0, 0, 0])
 
-    speed_factor=0.2
-    # raw_input("press enter")
-    ros_interface.move_to_pose(p1, q1, speed_factor=speed_factor)
+        # move for 1 sec
+        cmd.constant_velocity_param.timeout = timeout
+        cmd.constant_velocity_param.f_thresh = f_thresh
 
-    # step 2
-    cmd = ros_interface.get_constant_velocity_cmd()
-    cmd.constant_velocity_param.speed_factor = 0.01
-    cmd.constant_velocity_param.direction = np.array([0, 0, -1., 0, 0, 0])
+        cmd.constant_velocity_param.task_frame.pos = self.tf_pos
+        cmd.constant_velocity_param.task_frame.quat = self.tf_quat
 
-    # move for 1 sec
-    cmd.constant_velocity_param.timeout = 2.
-    cmd.constant_velocity_param.f_thresh = 5.
+        # raw_input("press enter")
+        self.ros_interface.run_primitive(cmd)
 
-    # raw_input("press enter")
-    ros_interface.run_primitive(cmd)
-    # step 3
-    cmd = ros_interface.get_constant_velocity_cmd()
-    cmd.constant_velocity_param.speed_factor = 0.01
-    cmd.constant_velocity_param.direction = np.array([-1, 0, 0., 0, 0, 0])
-    cmd.constant_velocity_param.fd = np.array([0, 0, -3, 0 , 0,0 ])
-    # move for 1 sec
-    cmd.constant_velocity_param.timeout = 5.
-    cmd.constant_velocity_param.f_thresh = 5.
-    # raw_input("press enter")
-    ros_interface.run_primitive(cmd)
+    # slide x direction
+    def step3(self, speed_factor=0.01, fzd=3., f_thresh=5., timeout=5):
+        cmd = self.ros_interface.get_constant_velocity_cmd()
+        cmd.constant_velocity_param.speed_factor = speed_factor
+        cmd.constant_velocity_param.direction = np.array([-1, 0, 0., 0, 0, 0])
+        # for square
+        # cmd.constant_velocity_param.direction = np.array([-1, -1, 0., 0, 0, 0])
+        cmd.constant_velocity_param.fd = np.array([0, 0, -fzd, 0 , 0,0 ])
+        # move for 1 sec
+        cmd.constant_velocity_param.timeout = timeout
+        cmd.constant_velocity_param.f_thresh = f_thresh
+        cmd.constant_velocity_param.task_frame.pos = self.tf_pos
+        cmd.constant_velocity_param.task_frame.quat = self.tf_quat
 
-    # step 4 - rotate util contact
-    cmd = ros_interface.get_constant_velocity_cmd()
-    cmd.constant_velocity_param.speed_factor = 0.015
-    cmd.constant_velocity_param.direction = np.array([0, 0, 0., 0, 1, 0])
-    cmd.constant_velocity_param.fd = np.array([-5, 0, -5, 0 , 0,0 ])
-    # move for 1 sec
-    cmd.constant_velocity_param.timeout = 15.
-    cmd.constant_velocity_param.f_thresh = 0.7
-    # raw_input("press enter")
-    ros_interface.run_primitive(cmd)
+        # raw_input("press enter")
+        self.ros_interface.run_primitive(cmd)
 
-    # step 5 - admittance motion
-    ##  set controller gain
-    kp_controller= np.array([500., 500., 500., 50., 50., 50.])
-    kd_controller = np.array([10.]*3 + [5.]*3)
-    ros_interface.set_gain(kp_controller, kd_controller)
-    time.sleep(0.5)
+    # rotate until contact
+    def step4(self, speed_factor, fxd, fzd, f_thresh, timeout):
+        cmd = self.ros_interface.get_constant_velocity_cmd()
+        cmd.constant_velocity_param.speed_factor = speed_factor
+        cmd.constant_velocity_param.direction = np.array([0, 0, 0., 0, 1, 0])
+        cmd.constant_velocity_param.fd = np.array([-fxd, 0, -fzd, 0 , 0,0 ])
+        # move for 1 sec
+        cmd.constant_velocity_param.timeout = timeout
+        cmd.constant_velocity_param.f_thresh = f_thresh
+        cmd.constant_velocity_param.task_frame.pos = self.tf_pos
+        cmd.constant_velocity_param.task_frame.quat = self.tf_quat
 
-    # with admittance
-    kd = np.array([0.015, 0.015, 0.015, 0.9, 0.9, 0.5])
-    # only push down
-    # kd = np.zeros(6)
+        # raw_input("press enter")
+        self.ros_interface.run_primitive(cmd)
 
-    fd = np.array([0, 0, -8.] + [0.]*3)
-    timeout = 10.
-    cmd = ros_interface.get_admittance_motion_cmd()
-    cmd.admittance_motion_param.kd = kd
-    cmd.admittance_motion_param.timeout = timeout
-    cmd.admittance_motion_param.fd = fd
-    cmd.admittance_motion_param.z_thresh = Tee[2, 3] - 0.02*0.95
-    # raw_input("press enter")
-    ros_interface.run_primitive(cmd)
+    # track 0 torque and force
+    def step5(self, kd, fzd, z_thresh, timeout):
 
-class Experiment:
+        cmd = self.ros_interface.get_admittance_motion_cmd()
+        cmd.admittance_motion_param.kd = kd
+        cmd.admittance_motion_param.timeout = timeout
+        cmd.admittance_motion_param.fd = np.array([0, 0, -fzd, 0, 0, 0])
+        cmd.admittance_motion_param.z_thresh = z_thresh
+        # raw_input("press enter")
+        self.ros_interface.run_primitive(cmd)
+
+# def run_sequence():
+#     ros_interface = RosInterface()
+#
+#     Tee = np.array([0.999276,-0.0322603,-0.0196635,0,\
+#         -0.0323633,-0.999454,-0.00494357,0,\
+#         -0.0194936,0.00557648,-0.999794,0,\
+#         0.530069,-0.0850753,0.150997,1]).reshape((4, 4)).T
+#
+#     # add artificial error
+#     axe = np.array([HOLE_ROTX_ERROR, HOLE_ROTY_ERROR, 0])* np.pi/180
+#     thetae = np.linalg.norm(axe)
+#     if thetae >= 1e-5:
+#         axe = axe / thetae
+#         qe = Q.axangle2quat(axe, thetae)
+#         Re = Q.quat2mat(qe)
+#         Tee[:3, :3] = Re.dot(Tee[:3, :3])
+#
+#     # step 0 calibration
+#     kp = np.array([1000., 1000., 1000., 80., 80., 50.])
+#     kd = 2*np.sqrt(kp)
+#     ros_interface.set_gain(kp, kd)
+#     time.sleep(0.5)
+#
+#     p0 = Tee[:3, 3].copy()
+#     p0[2] += 0.005
+#     q0 = Q.mat2quat(Tee[:3, :3])
+#
+#     ros_interface.move_to_pose(p0, q0, 0.2)
+#     time.sleep(1.)
+#
+#     # calib initial force
+#     ros_interface.set_init_force()
+#
+#     # step 1
+#     p1 = Tee[:3, 3].copy()
+#     p1[2] += 0.01
+#     p1[0] += 0.005
+#
+#     angle = -0.13
+#     axis = np.array([0., 1., 0])
+#     qtilt = Q.axangle2quat(axis, angle)
+#     qcur = Q.mat2quat(Tee[:3, :3])
+#     q1 = Q.qmult(qtilt, qcur)
+#
+#     speed_factor=0.2
+#     # raw_input("press enter")
+#     ros_interface.move_to_pose(p1, q1, speed_factor=speed_factor)
+#
+#     # step 2
+#     cmd = ros_interface.get_constant_velocity_cmd()
+#     cmd.constant_velocity_param.speed_factor = 0.01
+#     cmd.constant_velocity_param.direction = np.array([0, 0, -1., 0, 0, 0])
+#
+#     # move for 1 sec
+#     cmd.constant_velocity_param.timeout = 2.
+#     cmd.constant_velocity_param.f_thresh = 5.
+#
+#     # raw_input("press enter")
+#     ros_interface.run_primitive(cmd)
+#     # step 3
+#     cmd = ros_interface.get_constant_velocity_cmd()
+#     cmd.constant_velocity_param.speed_factor = 0.01
+#     cmd.constant_velocity_param.direction = np.array([-1, 0, 0., 0, 0, 0])
+#     cmd.constant_velocity_param.fd = np.array([0, 0, -3, 0 , 0,0 ])
+#     # move for 1 sec
+#     cmd.constant_velocity_param.timeout = 5.
+#     cmd.constant_velocity_param.f_thresh = 5.
+#     # raw_input("press enter")
+#     ros_interface.run_primitive(cmd)
+#
+#     # step 4 - rotate util contact
+#     cmd = ros_interface.get_constant_velocity_cmd()
+#     cmd.constant_velocity_param.speed_factor = 0.015
+#     cmd.constant_velocity_param.direction = np.array([0, 0, 0., 0, 1, 0])
+#     cmd.constant_velocity_param.fd = np.array([-5, 0, -5, 0 , 0,0 ])
+#     # move for 1 sec
+#     cmd.constant_velocity_param.timeout = 15.
+#     cmd.constant_velocity_param.f_thresh = 0.7
+#     # raw_input("press enter")
+#     ros_interface.run_primitive(cmd)
+#
+#     # step 5 - admittance motion
+    # ##  set controller gain
+    # kp_controller= np.array([500., 500., 500., 50., 50., 50.])
+    # kd_controller = np.array([10.]*3 + [5.]*3)
+    # ros_interface.set_gain(kp_controller, kd_controller)
+    # time.sleep(0.5)
+#
+#     # with admittance
+#     kd = np.array([0.015, 0.015, 0.015, 0.9, 0.9, 0.5])
+#     # only push down
+#     # kd = np.zeros(6)
+#
+#     fd = np.array([0, 0, -8.] + [0.]*3)
+#     timeout = 10.
+#     cmd = ros_interface.get_admittance_motion_cmd()
+#     cmd.admittance_motion_param.kd = kd
+#     cmd.admittance_motion_param.timeout = timeout
+#     cmd.admittance_motion_param.fd = fd
+#     cmd.admittance_motion_param.z_thresh = Tee[2, 3] - 0.02*0.95
+#     # raw_input("press enter")
+#     ros_interface.run_primitive(cmd)
+
+class Experiment(object):
     def __init__(self):
         self.state_saver = FrankaStateSaver(run_node=False)
 
@@ -343,7 +451,8 @@ class Experiment:
             kd_admittance=KD5, fzd5=FZD5, z_thresh=ZT, t5=T5
         )
 
-        self.seq = Sequence(T_HOLE)
+        # self.seq = Sequence(T_HOLE)
+        self.seq = TaskFrameSequence(T_HOLE)
 
     def get_save_dir(self, name):
         # create save file
@@ -367,6 +476,44 @@ class Experiment:
         self.seq.run_sequence(self.params)
         if record:
             self.state_saver.save(save_dir)
+
+    def test_range_velocity(self):
+        # v = [0.01, 0.02, 0.03, 0.05]
+        v = [0.07, 0.08]
+        for vi in v:
+            kp = self.params["kp0"]
+            kd = self.params["kd0"]
+            hole_pos_error = self.params["hole_pos_error"]
+            hole_rot_error = self.params["hole_rot_error"]
+            self.seq.step0(kp, kd, hole_pos_error, hole_rot_error)
+
+            tilt_angle = self.params["tilt_angle"]*np.pi /180
+            s = self.params["s1"]
+            # raw_input("press to run step 1")
+            self.seq.step1(tilt_angle, s)
+
+            s = self.params["s2"]
+            f_thresh = self.params["ft2"]
+            timeout = self.params["t2"]
+            # raw_input("press to run step 2")
+            self.seq.step2(s, f_thresh, timeout)
+
+            s = self.params["s3"]
+            fzd = self.params["fzd3"]
+            f_thresh = self.params["ft3"]
+            timeout = self.params["t3"]
+            # raw_input("press to run step 3")
+            self.seq.step3(s, fzd, f_thresh, timeout)
+            #
+            s = vi
+            fxd = self.params["fxd4"]
+            fzd = self.params["fzd4"]
+            f_thresh = self.params["ft4"]
+            timeout = self.params["t4"]
+            # raw_input("press to run step 4")
+            self.seq.step4(s, fxd, fzd, f_thresh, timeout)
+
+            self.seq.ros_interface.move_up(timeout=1.)
 
     def estimate_clearance(self):
         file_name = self.get_save_dir("estimate_clearance")
@@ -407,5 +554,6 @@ class Experiment:
 if __name__ == '__main__':
     exp = Experiment()
     # exp.run_sequence(record=True)
+    exp.test_range_velocity()
 
-    exp.estimate_clearance()
+    # exp.estimate_clearance()

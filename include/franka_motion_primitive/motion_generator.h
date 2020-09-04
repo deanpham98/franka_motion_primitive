@@ -26,10 +26,27 @@ namespace franka_motion_primitive {
                                     franka_hw::FrankaModelInterface,
                                     franka_hw::FrankaStateInterface> {
   /**
-   *  - Store library of motion primitives
+   *  - Store reconfigurable primitives classes (main_primitive_)
    *  - Publish command to the controller through /${CONTROLLER_NAME}/command
-   *  - receive a sequence and execute it
-   *  - receive a primitive and execute it
+   *
+   *  Publishes to
+   *  - \b  /hybrid_controller/command (franka_controllers::HybridControllerCommand)
+   *        publish command to the controller
+   *
+   *  - \b  /hybrid_controller/gain_config (franka_controllers::Gain)
+   *        set gain for the controller
+   *
+   *  - \b  /motion_generator/state (franka_motion_primitive::MotionGeneratorState)
+   *        publish current state of the motion generator
+   *
+   *  Services
+   *  - \b  /motion_generator/set_initial_force (franka_motion_primitive::SetInitialForce)
+   *        set the offset for the external force torque signals
+   *
+   *  - \b  /motion_generator/run_primitive (franka_motion_primitive::RunPrimitive)
+   *        execute primitives
+   *  
+   *
    */
   public:
     bool init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& nh) override;
@@ -69,7 +86,7 @@ namespace franka_motion_primitive {
     // publish execution state
     realtime_tools::RealtimePublisher<MotionGeneratorState> pub_state_;
     // TODO: read from yaml file
-    franka_hw::TriggerRate state_publish_rate_{500.0};
+    franka_hw::TriggerRate state_publish_rate_{200.0};
 
     // motion generator container for desired moition
     std::vector<std::shared_ptr<PrimitiveBase>> primitive_container_;

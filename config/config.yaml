@@ -13,7 +13,7 @@ hybrid_controller:
     - panda_joint6
     - panda_joint7
 
-  publish_rate: 500
+  publish_rate: 200
 
   gain:
-    Kp: [1000.0, 1000.0, 1000.0, 60.0, 60., 40.]
+    Kp: [1000.0, 1000.0, 1000.0, 60.0, 60., 30.]

@@ -9,18 +9,8 @@ class FrankaStateSaver:
     def __init__(self, run_node=True):
         if run_node:
             rospy.init_node("state_saver")
-            
-        self._data = {
-            "p": [],
-            "pd": [],
-            "q": [],
-            "qd": [],
-            "f": [],
-            "f_filter": [],
-            "f_ee": [],
-            # "jacobian": [],
-            # "body_jacobian": []
-        }
+
+        self._reset_data()
 
         # state subscriber
         sub_state_topic = "/hybrid_controller/state"
@@ -33,12 +23,34 @@ class FrankaStateSaver:
                                         MotionGeneratorState, self._sub_motion_gen_callback)
         self._record = False
 
+    def _reset_data(self):
+        self._data = {
+            "p": [],
+            "pd": [],
+            "q": [],
+            "qd": [],
+            "f": [],
+            "f_filter": [],
+            "f_ee": [],
+            # "theta": [],
+            # "jacobian": [],
+            # "body_jacobian": [],
+            "event": {
+                "id": [],
+                "stamp": [],
+                "name": [],
+            }
+        }
+        event_id = 0
+
+
     def _sub_state_callback(self, msg):
         if self._record:
             self._data["p"].append([msg.time, msg.p])
             self._data["pd"].append([msg.time, msg.pd])
             self._data["q"].append([msg.time, msg.q])
             self._data["qd"].append([msg.time, msg.qd])
+            # self._data["theta"].append([msg.time, msg.theta])
             # self._data["jacobian"].append([msg.time, msg.jacobian])
             # self._data["body_jacobian"].append([msg.time, msg.body_jacobian])
 
@@ -48,21 +60,17 @@ class FrankaStateSaver:
             self._data["f_filter"].append([msg.stamp, msg.f_filter])
             self._data["f_ee"].append([msg.stamp, msg.f_ee])
 
-
     def start_record(self):
         self._record = True
-        self._data = {
-            "p": [],
-            "pd": [],
-            "q": [],
-            "qd": [],
-            "f": [],
-            "f_filter": [],
-            "f_ee": [],
-            # "jacobian": [],
-            # "body_jacobian": [],
+        self._reset_data()
 
-        }
+    def record_event(self, name):
+        t = rospy.Time.now().to_sec()
+        self._data["event"]["id"].append(event_id)
+        self._data["event"]["stamp"].append(t)
+        self._data["event"]["name"].append(name)
+
+        event_id += 1
 
     def save(self, file_path):
         if not os.path.exists(file_path):

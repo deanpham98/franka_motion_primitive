@@ -139,19 +139,25 @@ namespace franka_motion_primitive{
 
   void MotionGenerator::update(const ros::Time& t_now, const ros::Duration& period) {
     // configure primtiive
-    if (kReceiveCommand == true && execution_status_ != Status::EXECUTING) {
-      // TODO: set controller param (publish to hybrid_controller)
-
-      // configure primitive
-      main_primitive_ = primitive_container_[target_primitive_type_];
-      main_primitive_->configure(primitive_param_);
-      kReceiveCommand = false;
-    }
+    // if (kReceiveCommand == true && execution_status_ != Status::EXECUTING) {
+    //   // TODO: set controller param (publish to hybrid_controller)
+    //
+    //   // configure primitive
+    //   main_primitive_ = primitive_container_[target_primitive_type_];
+    //   main_primitive_->configure(primitive_param_);
+    //   kReceiveCommand = false;
+    // }
 
     // configure primtiive
     if (kRunPrimitiveReq == true && execution_status_ != Status::EXECUTING) {
-      // TODO: set controller param (publish to hybrid_controller)
+      // set controller gain
+      franka_controllers::Gain gain =
+        boost::get<franka_controllers::Gain>(primitive_param_["controller_gain_msg"]);
 
+      if (pub_gain_.trylock()){
+        pub_gain_.msg_ = gain;
+        pub_gain_.unlockAndPublish();
+      }
       // configure primitive
       main_primitive_ = primitive_container_[target_primitive_type_];
       main_primitive_->configure(primitive_param_);
@@ -160,19 +166,19 @@ namespace franka_motion_primitive{
     }
 
     // admittance param
-    if (kReceiveDynamicServer) {
-      // TODO set controller gain
-      if (pub_gain_.trylock()){
-        pub_gain_.msg_.kDefineDamping = 1;
-        for (size_t i = 0; i < 6; i++){
-          pub_gain_.msg_.kp[i] = kp_dynamic_(i);
-          pub_gain_.msg_.kd[i] = kd_dynamic_(i);
-        }
-        pub_gain_.unlockAndPublish();
-      }
-      main_primitive_->SetAdmittanceGain(kd_admittance_dynamic_);
-      kReceiveDynamicServer = false;
-    }
+    // if (kReceiveDynamicServer) {
+    //   // TODO set controller gain
+    //   if (pub_gain_.trylock()){
+    //     pub_gain_.msg_.kDefineDamping = 1;
+    //     for (size_t i = 0; i < 6; i++){
+    //       pub_gain_.msg_.kp[i] = kp_dynamic_(i);
+    //       pub_gain_.msg_.kd[i] = kd_dynamic_(i);
+    //     }
+    //     pub_gain_.unlockAndPublish();
+    //   }
+    //   main_primitive_->SetAdmittanceGain(kd_admittance_dynamic_);
+    //   kReceiveDynamicServer = false;
+    // }
 
     // robot state
     franka::RobotState robot_state = state_handle_->getRobotState();
@@ -239,6 +245,7 @@ namespace franka_motion_primitive{
         pub_state_.msg_.f_filter[i] = s.f[i];
         pub_state_.msg_.f[i] = f[i] - f0_[i];
         pub_state_.msg_.f_ee[i] = s.f_ee[i];
+        pub_state_.msg_.status = int(execution_status_);
       }
       pub_state_.unlockAndPublish();
     }

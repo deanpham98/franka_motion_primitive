@@ -19,3 +19,7 @@ square_data_11_21_07 0.8deg error z success
 
 estimate_clearance_11_28_07: square clearance
 estimate_clearance_11_48_07  triangle clearance
+
+data_17_02_14: compare jacobian with simulation
+
+round_data_17_38_14: success run with task frame

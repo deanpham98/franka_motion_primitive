@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from criros.filters import ButterLowPass
 
+# FILE_NAME = "triangle_data_11_43_07.json"
+# FILE_NAME = "square_data_11_21_07.json"
 FILE_NAME = "estimate_clearance_11_28_07.json"
 DATA_RATE = 500
 
@@ -144,7 +146,7 @@ def plot_position(d, axis=0):
     # ax.plot(range(p_filter.shape[1]), p_filter.T)
     plt.show()
 
-def plot_position_error(d, axis=0):
+def plot_position_error(d, trans_dof=True):
     p = [k[1] for k in d["p"]]
     tp = [k[0] for k in d["p"]]
     p = np.array(p)
@@ -155,12 +157,18 @@ def plot_position_error(d, axis=0):
     p_align = np.zeros_like(pd)
     tp_align_idx = []
     for t in tpd:
-        k = np.argmin(np.abs(tp - t))
+        k = np.argmin(np.abs(np.array(tp) - t))
         tp_align_idx.append(k)
     p_align = p[tp_align_idx]
 
-    fig, ax = plt.subplots()
-    ax.plot(range(len(p_align)), p[:, axis] - pd[:, axis])
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+    if trans_dof:
+        ax1.plot(range(len(p_align)), p_align[:, 0] - pd[:, 0])
+        ax2.plot(range(len(p_align)), p_align[:, 1] - pd[:, 1])
+        ax3.plot(range(len(p_align)), p_align[:, 2] - pd[:, 2])
+    else:
+        pass
+
     # ax.plot(range(p_filter.shape[1]), p_filter.T)
     plt.show()
 
@@ -169,17 +177,31 @@ def estimate_clearance(d):
     p = [k[1] for k in d["p"]]
     p = np.array(p)
 
+    f = [k[1] for k in d["f"]]
+    f = np.array(f)
+
+    # print(len(p), len(f))
+
     # clearance x
     maxx_idx = np.argmax(p[:, 0])
     minx_idx = np.argmin(p[:, 0])
-    print(p[maxx_idx, 2], p[minx_idx, 2])
+    # print(p[maxx_idx, 2], p[minx_idx, 2])
+    print(f[maxx_idx, 0], f[minx_idx, 0], )
+
+    for idx, fi in enumerate(f):
+        if np.abs(fi[0]) <= 1e-2:
+            k = (f[maxx_idx, 0] - fi[0]) / (p[maxx_idx, 0] - p[idx, 0])
+            print(k)
+            break
+
 
     # clearance y
     maxx_idx = np.argmax(p[:, 1])
     minx_idx = np.argmin(p[:, 1])
-    print(p[maxx_idx, 2], p[minx_idx, 2])
+    # print(p[maxx_idx, 2], p[minx_idx, 2])
 
-    # print("clearance x: {}".format(max(p[:, 0]) - min(p[:, 0])))
+    print(5. / 26900)
+    print("clearance x: {}".format(max(p[:, 0]) - min(p[:, 0])))
     # print("clearance y: {}".format(max(p[:, 1]) - min(p[:, 1])))
 
 if __name__ == '__main__':
@@ -193,4 +215,4 @@ if __name__ == '__main__':
     # transform_ee(d)
     # plot_position(d, axis=1)
     # estimate_clearance(d)
-    plot_position_error(d, axis=0)
+    # plot_position_error(d)

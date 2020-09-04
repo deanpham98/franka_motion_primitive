@@ -135,12 +135,22 @@ class RosInterface:
     # move to pose defined in base frame
     # quat [w, x, y, z]
     # NOTE not ensure that the motion will be executed
-    def move_to_pose(self, pos, quat, speed_factor=0.1):
+    def move_to_pose(self, pos, quat, speed_factor=0.1, tf_pos=np.zeros(3), tf_quat=np.array([1., 0, 0, 0])):
         cmd = self.get_move_to_pose_cmd()
         cmd.move_to_pose_param.target_pose.pos = pos
         cmd.move_to_pose_param.target_pose.quat = quat
         cmd.move_to_pose_param.speed_factor = speed_factor
+        cmd.move_to_pose_param.task_frame.pos = tf_pos
+        cmd.move_to_pose_param.task_frame.quat = tf_quat
 
         self.run_primitive(cmd)
 
-    
+    def move_up(self, speed_factor=0.05, timeout=2.):
+        cmd = self.get_constant_velocity_cmd()
+        cmd.constant_velocity_param.speed_factor = speed_factor
+        cmd.constant_velocity_param.direction = np.array([0, 0., 1., 0, 0, 0])
+
+        # move for 1 sec
+        cmd.constant_velocity_param.timeout = timeout
+        cmd.constant_velocity_param.f_thresh = 100.
+        self.run_primitive(cmd)
