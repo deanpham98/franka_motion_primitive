@@ -39,6 +39,10 @@ namespace franka_motion_primitive{
         ControlSignal& cmd, Status& status, const State& s, const double& dt){
     if (t_exec_ == 0) {
       s0_ = s;
+      // plan from compliant frame
+      Pose c_pose;
+      compliant_frame_->get_compliant_frame(c_pose);
+      s0_.pose = c_pose;
       plan_trajectory();
     }
 
@@ -72,6 +76,9 @@ namespace franka_motion_primitive{
       if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
       // if (std::abs(fd_(i)) >= 1e-2) {cmd.S(i, i) = 0;}
     }
+
+    // update compliant frame
+    compliant_frame_->set_compliant_frame(cmd.pose);
   }
 
   void MoveToPose::configure(ParamMap& params) {
@@ -184,6 +191,12 @@ namespace franka_motion_primitive{
       pd_ = s0_.pose.p;
       qd_ = s0_.pose.q;
       // plan_trajectory();
+      // set from compliant frame
+      Pose c_pose;
+      compliant_frame_->get_compliant_frame(c_pose);
+      s0_.pose = c_pose;
+      pd_ = c_pose.p;
+      qd_ = c_pose.q;
     }
 
     // update status
@@ -236,8 +249,14 @@ namespace franka_motion_primitive{
     cmd.S.setIdentity();
     for (size_t i = 0; i< 6; ++i){
       // if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
-      if (std::abs(fd_base_(i)) >= 1.) {cmd.S(i, i) = 0;}
+      if (std::abs(fd_base_(i)) >= 1.) {
+        cmd.S(i, i) = 0;
+        if (i <3)
+          cmd.pose.p(i) = s.pose.p(i);
+      }
     }
+    // set compliant frame
+    compliant_frame_->set_compliant_frame(cmd.pose);
   }
 
   void ConstantVelocity::configure(ParamMap& params) {
@@ -445,8 +464,14 @@ namespace franka_motion_primitive{
     // selection matrix
     cmd.S.setIdentity();
     for (size_t i = 0; i< 6; ++i){
-      if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+      if (std::abs(fd_base_(i)) >= 1.) {
+        cmd.S(i, i) = 0;
+        if (i <3)
+          cmd.pose.p(i) = s.pose.p(i);
+      }
     }
+    // update compliant frame
+    compliant_frame_->set_compliant_frame(cmd.pose);
   }
 
   void AdmittanceMotion::configure(ParamMap& params) {
@@ -483,4 +508,176 @@ namespace franka_motion_primitive{
     else {status = Status::SUCCESS; return;}
     status = Status::EXECUTING;
   }
+
+  void Displacement::configure(ParamMap& params) {
+    Vector6d move_dir;
+
+    speed_factor_ = boost::get<double>(params["speed_factor"]);
+    fd_           = boost::get<Vector6d>(params["target_force"]);
+    task_frame_.p = boost::get<Vector3d>(params["task_frame_pos"]);
+    task_frame_.q = boost::get<Quaterniond>(params["task_frame_quat"]);
+    t_max_        = boost::get<double>(params["timeout"]);
+    move_dir        = boost::get<Vector6d>(params["direction"]);
+    f_thresh_     = boost::get<double>(params["f_thresh"]);
+    delta_d_      = boost::get<double>(params["displacement"]);
+
+    // velocity in the task frame v^t_ee
+    Vector6d ve_task;
+    for (size_t i=0; i<6; ++i)
+      ve_task(i) = speed_factor_ * dx_max_(i) * move_dir(i);
+
+    // transform to base frame v^0_ee
+    // R^0_task
+    Matrix3d R(task_frame_.q);
+    vd_base_.head(3) = R*ve_task.head(3);
+    vd_base_.tail(3) = R*ve_task.tail(3);
+    move_dir_ = vd_base_.normalized();
+    // std::cout << vd_base_ << std::endl;
+
+    // transform to base frame
+    fd_base_.head(3) = R*fd_.head(3);
+    fd_base_.tail(3) = R*fd_.tail(3);
+
+    // std::cout << fd_base_ << std::endl;
+
+    // reset time
+    t_exec_ = 0.;
+    stopping_step_ =0;
+    // reset contact
+    kDetectContact = false;
+    // displacement goal detect
+    kDisplacementReach = false;
+  }
+
+
+  void Displacement::update_control(
+      ControlSignal& cmd, Status& status,
+      const State& s, const double& dt) {
+    if (t_exec_ == 0) {
+      // initial compliant frame
+      s0_ = s;
+      // initial sensed position
+      ps0_ = s.pose;
+      // plan_trajectory();
+      // set from compliant frame
+      Pose c_pose;
+      compliant_frame_->get_compliant_frame(c_pose);
+      s0_.pose = c_pose;
+      pd_ = c_pose.p;
+      qd_ = c_pose.q;
+    }
+
+    // update displacement
+    if (s.pose.q.coeffs().dot(ps0_.q.coeffs()) < 0.0) {
+      ps0_.q.coeffs() << -ps0_.q.coeffs();
+    }
+
+    Eigen::Quaterniond qe(s.pose.q * ps0_.q.inverse());
+    Eigen::AngleAxisd aa_e(qe);  // quat -> aa
+
+    dp_.head(3) = s.pose.p - ps0_.p;
+    dp_.tail(3) << aa_e.axis() * aa_e.angle();
+
+    // update status
+    check_terminate(status, s);
+    // update time
+    // t_exec_ += dt;
+    if (status == Status::EXECUTING) {t_exec_ += dt;}
+    t_max_ -= dt;
+
+    // update control
+    // force
+    cmd.f = fd_base_;
+
+    if (status == Status::EXECUTING) {
+      // motion
+      if (!kDetectContact) {
+        pd_ = s0_.pose.p + t_exec_*vd_base_.head(3);
+        // desired quaternion
+        Vector3d rotd;
+        rotd = t_exec_*vd_base_.tail(3);
+        double angle = rotd.norm();
+        rotd.normalize(); // normalize vector
+        AngleAxisd aa_d(angle, rotd);
+        // NOTE different quaternion between the desired and initial orientation,
+        //      expressed in the base frame
+        Quaterniond qe_d(aa_d);   // angle axis to quaternion
+        qd_ = qe_d * s0_.pose.q;
+        // desired velocity
+        cmd.v= vd_base_;
+      }
+      else {
+        // pd_ = kAlphaStop*pd_ + (1-kAlphaStop)*ps_;
+        // Quaterniond qslerp = qd_.slerp(1-kAlphaStop, qs_);
+        // qd_ = qslerp;
+        cmd.v = Vector6d::Zero();
+      }
+    }
+    else {cmd.v = Vector6d::Zero();}
+
+    // setting fd = f_thresh in the moving direction
+    // if (status == Status::SUCCESS) {
+    //   Vector6d f = move_dir_ * f_thresh_;
+    //   cmd.f = fd_base_ + f;
+    // }
+
+    cmd.pose.p = pd_;
+    cmd.pose.q = qd_;
+
+    // selection matrix
+    cmd.S.setIdentity();
+    for (size_t i = 0; i< 6; ++i){
+      // if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+      if (std::abs(fd_base_(i)) >= 1.) {
+        cmd.S(i, i) = 0;
+        if (i <3)
+          cmd.pose.p(i) = s.pose.p(i);
+      }
+    }
+    // set compliant frame
+    compliant_frame_->set_compliant_frame(cmd.pose);
+  }
+
+  void Displacement::check_terminate(Status& status, const State& state){
+    // quat to rotatiion matrix
+    Matrix3d R(state.pose.q);
+
+    // transofrm fe to f0
+    Vector6d f0;
+    f0.head(3) = R*state.f_ee.head(3);
+    f0.tail(3) = R*state.f_ee.tail(3);
+
+    double f_proj;
+    // project external force to move direction
+    f_proj= f0.adjoint()*move_dir_;
+    // std::cout << f_proj << std::endl;
+
+    // directional displacement
+    double dp_proj = dp_.adjoint()*move_dir_;
+
+    if (t_max_ < 0) {status = Status::TIMEOUT; return;}
+    else if (f_proj > f_thresh_) {
+      if (kDetectContact==false) {
+        ps_ = state.pose.p;
+        qs_ = state.pose.q;
+        kDetectContact = true;
+      }
+    }
+
+    else if (std::abs(dp_proj) > delta_d_) {
+      if (kDisplacementReach==false){
+        ps_ = state.pose.p;
+        qs_ = state.pose.q;
+        kDisplacementReach = true;
+      }
+    }
+
+    if (stopping_step_<=kMaxStoppingStep) {
+      if (kDetectContact || kDisplacementReach)
+        {stopping_step_ += 1;}
+    }
+    else {status = Status::SUCCESS; return;}
+    status = Status::EXECUTING;
+  }
+
 }

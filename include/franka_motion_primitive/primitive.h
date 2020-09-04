@@ -144,7 +144,7 @@ namespace franka_motion_primitive{
 
        // return the status of the primitive, g(s)
        void check_terminate(Status& status, const State& state) override;
-    private:
+    protected:
       void plan_trajectory();
 
       double speed_factor_;
@@ -165,7 +165,7 @@ namespace franka_motion_primitive{
       // stopping motino
       bool kDetectContact;
       int stopping_step_;
-      const int kMaxStoppingStep{100};
+      const int kMaxStoppingStep{1};
       const double kAlphaStop{0.95}; // p = k*p + (1-k)*pd
 
       // threshhold force
@@ -224,6 +224,45 @@ namespace franka_motion_primitive{
 
       // store value of t_max
       double timeout_;
+  };
+
+  class Displacement : public ConstantVelocity {
+    /**
+     *  displacement in a certain direction. It is similar to the
+     *  constant velocity primitive in most parts, except for the
+     *  stop condition.
+     */
+    public:
+      Displacement() : ConstantVelocity() {
+        dp_.setZero();
+        delta_d_ = 0.;
+        kDisplacementReach = false;
+      };
+      Displacement(std::shared_ptr<CompliantFrame>& c_frame)
+          : ConstantVelocity(c_frame) {
+        dp_.setZero();
+        delta_d_ = 0.;
+        kDisplacementReach = false;
+      };
+
+      void update_control(
+          ControlSignal& cmd, Status& status,
+          const State& s, const double& dt) override;
+
+      void configure(ParamMap& params) override;
+
+      // return the status of the primitive, g(s)
+      void check_terminate(Status& status, const State& state) override;
+
+    private:
+      // current displacement
+      Vector6d dp_;
+      // desired directional displacement
+      double delta_d_;
+      // detect complete
+      bool kDisplacementReach;
+      // initial pose
+      Pose ps0_;
   };
 
   // construct, run primitives
