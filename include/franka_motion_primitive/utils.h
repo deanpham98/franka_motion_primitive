@@ -62,6 +62,16 @@ namespace franka_motion_primitive{
     Vector6d v;     // spatial velocity
   };
 
+  // compliant frame object
+  class CompliantFrame {
+    private:
+      Pose frame_;
+    public:
+      CompliantFrame(){frame_.p.setZero(); frame_.q = Quaterniond(1., 0., 0., 0.);}
+      void get_compliant_frame(Pose& out) {out = frame_;}
+      void set_compliant_frame(const Pose& in) {frame_ = in;}
+  };
+
   // use to store params of different types,
   // similar to dictionary in python
   using TypeVariant = boost::variant<

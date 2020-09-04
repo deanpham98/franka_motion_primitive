@@ -47,16 +47,18 @@ namespace franka_motion_primitive{
     // TODO: read no_primitive_type_ from config
     no_primitive_types_ = 3; // default value
 
+    // common compliant frame
+    std::shared_ptr<CompliantFrame> c_frame = std::make_shared<CompliantFrame>();
     // primitive container
     primitive_container_.resize(no_primitive_types_);
     primitive_container_[PrimitiveType::MoveToPose] =
-      std::make_shared<franka_motion_primitive::MoveToPose>();
+      std::make_shared<franka_motion_primitive::MoveToPose>(c_frame);
 
     primitive_container_[PrimitiveType::ConstantVelocity] =
-      std::make_shared<franka_motion_primitive::ConstantVelocity>();
+      std::make_shared<franka_motion_primitive::ConstantVelocity>(c_frame);
 
     primitive_container_[PrimitiveType::AdmittanceMotion] =
-      std::make_shared<franka_motion_primitive::AdmittanceMotion>();
+      std::make_shared<franka_motion_primitive::AdmittanceMotion>(c_frame);
 
     // set main primitive to move to pose primtiive
     main_primitive_ = primitive_container_[PrimitiveType::MoveToPose];

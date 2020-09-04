@@ -5,7 +5,22 @@ namespace franka_motion_primitive{
 
   }
 
-  MoveToPose::MoveToPose() {
+  MoveToPose::MoveToPose() : PrimitiveBase() {
+    speed_factor_ = 0.5;
+    pd_.p.setZero();
+    pd_.q = Quaterniond(1.0, 0., 0., 0.);
+    pd_base_.p.setZero();
+    pd_base_.q = Quaterniond(1.0, 0., 0., 0.);
+
+    fd_.setZero();
+    Sd_.setIdentity();
+
+    t_traj_syn_ = 1.0;
+    dx_traj_max_ = speed_factor_ * dx_max_;
+    delta_x_.setZero();
+  }
+  MoveToPose::MoveToPose(std::shared_ptr<CompliantFrame>& c_frame)
+      : PrimitiveBase(c_frame) {
     speed_factor_ = 0.5;
     pd_.p.setZero();
     pd_.q = Quaterniond(1.0, 0., 0., 0.);
@@ -128,6 +143,22 @@ namespace franka_motion_primitive{
   }
 
   ConstantVelocity::ConstantVelocity() {
+    speed_factor_ = 0;
+    // v_dir_.setZero();
+    fd_.setZero();
+    fd_base_.setZero();
+    Sd_.setIdentity();
+    f_thresh_ = 10.;
+    kDetectContact = false;
+    stopping_step_ = 0;
+    move_dir_.setZero();
+    pd_.setZero();
+    ps_.setZero();
+    qd_ = Quaterniond(1.0, 0.0, 0.0, 0.0);
+    qs_ = Quaterniond(1.0, 0.0, 0.0, 0.0);
+  }
+  ConstantVelocity::ConstantVelocity(std::shared_ptr<CompliantFrame>& c_frame)
+      : PrimitiveBase(c_frame){
     speed_factor_ = 0;
     // v_dir_.setZero();
     fd_.setZero();
@@ -318,6 +349,18 @@ namespace franka_motion_primitive{
     qd_ = Quaterniond(1., 0., 0., 0.);
     qs_ = Quaterniond(1., 0., 0., 0.);
 
+  }
+  AdmittanceMotion::AdmittanceMotion(std::shared_ptr<CompliantFrame>& c_frame)
+      : PrimitiveBase(c_frame) {
+    fd_.setZero();
+    fd_base_.setZero();
+    kd_.setZero();
+    z_thresh_ = 0.;
+
+    pd_.setZero();
+    ps_.setZero();
+    qd_ = Quaterniond(1., 0., 0., 0.);
+    qs_ = Quaterniond(1., 0., 0., 0.);
   }
 
   void AdmittanceMotion::update_control(

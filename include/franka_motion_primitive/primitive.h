@@ -1,7 +1,6 @@
 #include "utils.h"
 
 namespace franka_motion_primitive{
-
   class PrimitiveBase {
     protected:
       // transform world state to task state
@@ -28,6 +27,9 @@ namespace franka_motion_primitive{
       // initial state
       State s0_;
 
+      // shared compliant frame
+      std::shared_ptr<CompliantFrame> compliant_frame_;
+
     public:
       PrimitiveBase() {
         t_exec_ = 0; t_max_ = 5.; Kp_.setIdentity(); Kd_.setIdentity();
@@ -38,6 +40,16 @@ namespace franka_motion_primitive{
         // for (size_t i=0; i<6 ; i++){
         //   controller_gain_.kp[i] = kp_init_(i);
         // }
+        compliant_frame_ = std::make_shared<CompliantFrame>();
+      }
+
+      PrimitiveBase(std::shared_ptr<CompliantFrame>& c_frame){
+        t_exec_ = 0; t_max_ = 5.; Kp_.setIdentity(); Kd_.setIdentity();
+        s0_.pose.p.setZero(); s0_.pose.q = Quaterniond(1., 0., 0., 0.);
+        s0_.f.setZero(); s0_.v.setZero();
+        task_frame_.p.setZero(); task_frame_.q = Quaterniond(1., 0., 0., 0.);
+        // copy shared_ptr
+        compliant_frame_ =  c_frame;
       }
 
       // update control command and return the execution status of the primitive
@@ -77,6 +89,7 @@ namespace franka_motion_primitive{
      */
     public:
       MoveToPose();
+      MoveToPose(std::shared_ptr<CompliantFrame>& c_frame);
 
       // update the control command (represented in base frame)
       void update_control(
@@ -120,6 +133,7 @@ namespace franka_motion_primitive{
      */
      public:
        ConstantVelocity();
+       ConstantVelocity(std::shared_ptr<CompliantFrame>& c_frame);
 
        void update_control(
            ControlSignal& cmd, Status& status,
@@ -170,6 +184,7 @@ namespace franka_motion_primitive{
   class AdmittanceMotion : public PrimitiveBase {
     public:
       AdmittanceMotion();
+      AdmittanceMotion(std::shared_ptr<CompliantFrame>& c_frame);
 
       void update_control(
           ControlSignal& cmd, Status& status,
