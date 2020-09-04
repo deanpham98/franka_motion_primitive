@@ -57,6 +57,7 @@ add_message_files(
   AdmittanceMotionParam.msg
   MotionGeneratorState.msg
   PrimitiveStatus.msg
+  DisplacementParam.msg
 )
 
 ## Generate services in the 'srv' folder

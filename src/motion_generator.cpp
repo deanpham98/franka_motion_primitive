@@ -45,7 +45,7 @@ namespace franka_motion_primitive{
     }
 
     // TODO: read no_primitive_type_ from config
-    no_primitive_types_ = 3; // default value
+    no_primitive_types_ = 4; // default value
 
     // common compliant frame
     c_frame_ = std::make_shared<CompliantFrame>();
@@ -59,6 +59,10 @@ namespace franka_motion_primitive{
 
     primitive_container_[PrimitiveType::AdmittanceMotion] =
       std::make_shared<franka_motion_primitive::AdmittanceMotion>(c_frame_);
+
+    primitive_container_[PrimitiveType::Displacement] =
+      std::make_shared<franka_motion_primitive::Displacement>(c_frame_);
+
 
     // set main primitive to move to pose primtiive
     main_primitive_ = primitive_container_[PrimitiveType::MoveToPose];
@@ -422,7 +426,7 @@ namespace franka_motion_primitive{
       out["speed_factor"] = req.move_to_pose_param.speed_factor;
       out["controller_gain_msg"] = req.move_to_pose_param.controller_gain;
     }
-    else if (target_primitive_type_ == PrimitiveType::ConstantVelocity) {
+    else if (target_primitive_type_ == PrimitiveType::ConstantVelocity){
       Vector3d task_frame_pos;
       Quaterniond task_frame_quat;
       Vector6d move_dir, fd;
@@ -448,7 +452,6 @@ namespace franka_motion_primitive{
       out["speed_factor"] = req.constant_velocity_param.speed_factor;
       out["timeout"] = req.constant_velocity_param.timeout;
       out["f_thresh"] = req.constant_velocity_param.f_thresh;
-
     }
     else if (target_primitive_type_ == PrimitiveType::AdmittanceMotion) {
       Vector6d fd, kd;
@@ -460,6 +463,34 @@ namespace franka_motion_primitive{
       out["timeout"] = req.admittance_motion_param.timeout;
       out["z_thresh"] = req.admittance_motion_param.z_thresh;
 
+    }
+    else if (target_primitive_type_ == PrimitiveType::Displacement){
+      Vector3d task_frame_pos;
+      Quaterniond task_frame_quat;
+      Vector6d move_dir, fd;
+
+      // task frame
+      task_frame_pos = Vector3d::Map(req.displacement_param.task_frame.pos.data());
+      // task_frame_quat = Quaterniond(req.displacement_param.task_frame.quat.data());
+      task_frame_quat = Quaterniond(req.displacement_param.task_frame.quat[0],
+                                    req.displacement_param.task_frame.quat[1],
+                                    req.displacement_param.task_frame.quat[2],
+                                  req.displacement_param.task_frame.quat[3]);
+
+      // desired force
+      fd = Vector6d::Map(req.displacement_param.fd.data());
+
+      // move_dir
+      move_dir = Vector6d::Map(req.displacement_param.direction.data());
+
+      out["task_frame_pos"] = task_frame_pos;
+      out["task_frame_quat"] = task_frame_quat;
+      out["direction"] = move_dir;
+      out["target_force"] = fd;
+      out["speed_factor"] = req.displacement_param.speed_factor;
+      out["timeout"] = req.displacement_param.timeout;
+      out["f_thresh"] = req.displacement_param.f_thresh;
+      out["displacement"] = req.displacement_param.displacement;
     }
   }
 }
