@@ -116,11 +116,12 @@ namespace franka_motion_primitive{
   }
 
   void MoveToPose::plan_trajectory() {
-    // TODO read AND set controller gain
+    // TODO read AND set controller in
     // calculate delta_x
     if (pd_base_.q.coeffs().dot(s0_.pose.q.coeffs()) < 0.0) {
       s0_.pose.q.coeffs() << -s0_.pose.q.coeffs();
     }
+
     Eigen::Quaterniond qe(pd_base_.q * s0_.pose.q.inverse());
     Eigen::AngleAxisd aa_e(qe);  // quat -> aa
 

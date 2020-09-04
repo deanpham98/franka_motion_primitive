@@ -48,17 +48,17 @@ namespace franka_motion_primitive{
     no_primitive_types_ = 3; // default value
 
     // common compliant frame
-    std::shared_ptr<CompliantFrame> c_frame = std::make_shared<CompliantFrame>();
+    c_frame_ = std::make_shared<CompliantFrame>();
     // primitive container
     primitive_container_.resize(no_primitive_types_);
     primitive_container_[PrimitiveType::MoveToPose] =
-      std::make_shared<franka_motion_primitive::MoveToPose>(c_frame);
+      std::make_shared<franka_motion_primitive::MoveToPose>(c_frame_);
 
     primitive_container_[PrimitiveType::ConstantVelocity] =
-      std::make_shared<franka_motion_primitive::ConstantVelocity>(c_frame);
+      std::make_shared<franka_motion_primitive::ConstantVelocity>(c_frame_);
 
     primitive_container_[PrimitiveType::AdmittanceMotion] =
-      std::make_shared<franka_motion_primitive::AdmittanceMotion>(c_frame);
+      std::make_shared<franka_motion_primitive::AdmittanceMotion>(c_frame_);
 
     // set main primitive to move to pose primtiive
     main_primitive_ = primitive_container_[PrimitiveType::MoveToPose];
@@ -131,6 +131,9 @@ namespace franka_motion_primitive{
     // filter gain
     filter_gain_ = kDeltaT / (kDeltaT + 1/(2*M_PI*kCutoffFrequency));
     std::cout << filter_gain_ <<std::endl;
+
+    // set compliant frame
+    c_frame_->set_compliant_frame(p, q);
 
     target_primitive_type_ = PrimitiveType::MoveToPose;
     execution_status_ = Status::EXECUTING;

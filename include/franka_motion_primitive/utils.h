@@ -69,7 +69,11 @@ namespace franka_motion_primitive{
     public:
       CompliantFrame(){frame_.p.setZero(); frame_.q = Quaterniond(1., 0., 0., 0.);}
       void get_compliant_frame(Pose& out) {out = frame_;}
+      void get_position(Vector3d& out) {out = frame_.p;}
+      void get_orientation(Quaterniond& out) {out = frame_.q;}
       void set_compliant_frame(const Pose& in) {frame_ = in;}
+      void set_compliant_frame(const Vector3d& pos, const Quaterniond& quat)
+        {frame_.p = pos; frame_.q = quat;}
   };
 
   // use to store params of different types,

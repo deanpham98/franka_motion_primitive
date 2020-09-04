@@ -45,7 +45,7 @@ namespace franka_motion_primitive {
    *
    *  - \b  /motion_generator/run_primitive (franka_motion_primitive::RunPrimitive)
    *        execute primitives
-   *  
+   *
    *
    */
   public:
@@ -137,5 +137,8 @@ namespace franka_motion_primitive {
     Vector6d kp_dynamic_;
     Vector6d kd_dynamic_;
     bool kReceiveDynamicServer;
+
+    // compliant frame, used to set the initial compliant frame
+    std::shared_ptr<CompliantFrame> c_frame_;
 };
 } // namespace
