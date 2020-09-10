@@ -55,7 +55,10 @@ namespace franka_motion_primitive{
 
     // update control
     // force
-    cmd.f = fd_base_;
+    Vector6d fd;
+    compliant_frame_->get_fd(fd);
+    // progressively change the value of controlled force
+    cmd.f = fd_base_*0.01 + fd*0.99;
 
     // motion
     if (status == Status::EXECUTING){
@@ -64,6 +67,7 @@ namespace franka_motion_primitive{
       cmd.pose.p = s0_.pose.p + k * delta_x_.head(3);
       // cmd.pose.q = slerp(s0_.pose.q, pd_.q, k);
       cmd.pose.q = s0_.pose.q.slerp(k, pd_base_.q);
+      // std::cout << "q_command" << cmd.pose.q.coeffs() << std::endl;
       cmd.v = k_vel * dx_traj_max_;
     }
     else {
@@ -79,6 +83,7 @@ namespace franka_motion_primitive{
 
     // update compliant frame
     compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->set_fd(cmd.f);
   }
 
   void MoveToPose::configure(ParamMap& params) {
@@ -134,6 +139,9 @@ namespace franka_motion_primitive{
 
     delta_x_.head(3) = pd_base_.p - s0_.pose.p;
     delta_x_.tail(3) << aa_e.axis() * aa_e.angle();
+    for (size_t i=0; i<3; i++){
+      if (std::isnan(delta_x_(i+3))) delta_x_(i+3) =0.;
+    }
 
     // calculate synchronized moving time
     Vector6d t_min_traj;
@@ -144,10 +152,15 @@ namespace franka_motion_primitive{
     t_traj_syn_ = t_min_traj.maxCoeff();
 
     // update maximum velocity
-    for (size_t i = 0; i< 6; ++i){
-      dx_traj_max_(i) = delta_x_(i) * M_PI / (2 * t_traj_syn_);
+    if (t_traj_syn_ < 1e-5){
+      t_traj_syn_ = 1e-9;
+      dx_traj_max_.setZero();
     }
-
+    else{
+      for (size_t i = 0; i< 6; ++i){
+        dx_traj_max_(i) = delta_x_(i) * M_PI / (2 * t_traj_syn_);
+      }
+    }
   }
 
   ConstantVelocity::ConstantVelocity() {
@@ -197,6 +210,7 @@ namespace franka_motion_primitive{
       s0_.pose = c_pose;
       pd_ = c_pose.p;
       qd_ = c_pose.q;
+      // std::cout << "q_c_init" << s0_.pose.q.coeffs() << std::endl;
     }
 
     // update status
@@ -208,7 +222,11 @@ namespace franka_motion_primitive{
 
     // update control
     // force
-    cmd.f = fd_base_;
+    // cmd.f = fd_base_;
+    Vector6d fd;
+    compliant_frame_->get_fd(fd);
+    // progressively change the value of controlled force
+    cmd.f = fd_base_*0.01 + fd*0.99;
 
     if (status == Status::EXECUTING) {
       // motion
@@ -218,12 +236,17 @@ namespace franka_motion_primitive{
         Vector3d rotd;
         rotd = t_exec_*vd_base_.tail(3);
         double angle = rotd.norm();
-        rotd.normalize(); // normalize vector
-        AngleAxisd aa_d(angle, rotd);
-        // NOTE different quaternion between the desired and initial orientation,
-        //      expressed in the base frame
-        Quaterniond qe_d(aa_d);   // angle axis to quaternion
-        qd_ = qe_d * s0_.pose.q;
+        if (angle > 1e-9) {
+          rotd.normalize(); // normalize vector
+          AngleAxisd aa_d(angle, rotd);
+          // NOTE different quaternion between the desired and initial orientation,
+          //      expressed in the base frame
+          Quaterniond qe_d(aa_d);   // angle axis to quaternion
+          qd_ = qe_d * s0_.pose.q;
+        }
+        else {
+          qd_ = s0_.pose.q;
+        }
         // desired velocity
         cmd.v= vd_base_;
       }
@@ -257,6 +280,7 @@ namespace franka_motion_primitive{
     }
     // set compliant frame
     compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->set_fd(cmd.f);
   }
 
   void ConstantVelocity::configure(ParamMap& params) {
@@ -388,8 +412,13 @@ namespace franka_motion_primitive{
       const State& s, const double& dt) {
     if (t_exec_ == 0) {
       s0_ = s;
-      pd_ = s.pose.p;
-      qd_ = s.pose.q;
+      Pose c_pose;
+      compliant_frame_->get_compliant_frame(c_pose);
+      s0_.pose = c_pose;
+      // pd_ = s.pose.p;
+      // qd_ = s.pose.q;
+      pd_ = c_pose.p;
+      qd_ = c_pose.q;
       fd_ = fd_base_;
       timeout_ = t_max_;
     }
@@ -403,6 +432,10 @@ namespace franka_motion_primitive{
     // update control
     // force
     // cmd.f = fd_base_;
+    Vector6d fd;
+    compliant_frame_->get_fd(fd);
+    // progressively change the value of controlled force
+    cmd.f = fd_base_*0.01 + fd*0.99;
 
     // Vector6d fd;
     if (status == Status::EXECUTING) {
@@ -453,13 +486,13 @@ namespace franka_motion_primitive{
       //     fd_(2) = fd_base_(2) + t_exec_/timeout_*(kMaxForce - fd_base_(2));
       //   else fd_(2) = kMaxForce;
       // }
-      fd_ = fd_base_;
+      // fd_ = fd_base_;
     }
     else {cmd.v = Vector6d::Zero();}
 
     cmd.pose.p = pd_;
     cmd.pose.q = qd_;
-    cmd.f = fd_;
+    // cmd.f = fd_;
 
     // selection matrix
     cmd.S.setIdentity();
@@ -472,6 +505,8 @@ namespace franka_motion_primitive{
     }
     // update compliant frame
     compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->set_fd(cmd.f);
+
   }
 
   void AdmittanceMotion::configure(ParamMap& params) {
@@ -557,7 +592,8 @@ namespace franka_motion_primitive{
       // initial compliant frame
       s0_ = s;
       // initial sensed position
-      ps0_ = s.pose;
+      ps0_.p = s.pose.p;
+      ps0_.q = s.pose.q;
       // plan_trajectory();
       // set from compliant frame
       Pose c_pose;
@@ -577,6 +613,9 @@ namespace franka_motion_primitive{
 
     dp_.head(3) = s.pose.p - ps0_.p;
     dp_.tail(3) << aa_e.axis() * aa_e.angle();
+    for (size_t i=0; i<3; i++){
+      if (std::isnan(dp_(i+3))) dp_(i+3) =0.;
+    }
 
     // update status
     check_terminate(status, s);
@@ -587,22 +626,31 @@ namespace franka_motion_primitive{
 
     // update control
     // force
-    cmd.f = fd_base_;
+    // cmd.f = fd_base_;
+    Vector6d fd;
+    compliant_frame_->get_fd(fd);
+    // progressively change the value of controlled force
+    cmd.f = fd_base_*0.01 + fd*0.99;
 
     if (status == Status::EXECUTING) {
       // motion
-      if (!kDetectContact) {
+      if (!kDetectContact && !kDisplacementReach) {
         pd_ = s0_.pose.p + t_exec_*vd_base_.head(3);
         // desired quaternion
         Vector3d rotd;
         rotd = t_exec_*vd_base_.tail(3);
         double angle = rotd.norm();
-        rotd.normalize(); // normalize vector
-        AngleAxisd aa_d(angle, rotd);
-        // NOTE different quaternion between the desired and initial orientation,
-        //      expressed in the base frame
-        Quaterniond qe_d(aa_d);   // angle axis to quaternion
-        qd_ = qe_d * s0_.pose.q;
+        if (angle > 1e-9) {
+          rotd.normalize(); // normalize vector
+          AngleAxisd aa_d(angle, rotd);
+          // NOTE different quaternion between the desired and initial orientation,
+          //      expressed in the base frame
+          Quaterniond qe_d(aa_d);   // angle axis to quaternion
+          qd_ = qe_d * s0_.pose.q;
+        }
+        else {
+          qd_ = s0_.pose.q;
+        }
         // desired velocity
         cmd.v= vd_base_;
       }
@@ -636,6 +684,7 @@ namespace franka_motion_primitive{
     }
     // set compliant frame
     compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->set_fd(cmd.f);
   }
 
   void Displacement::check_terminate(Status& status, const State& state){
@@ -650,11 +699,15 @@ namespace franka_motion_primitive{
     double f_proj;
     // project external force to move direction
     f_proj= f0.adjoint()*move_dir_;
-    // std::cout << f_proj << std::endl;
 
     // directional displacement
     double dp_proj = dp_.adjoint()*move_dir_;
 
+    // checking
+    // std::cout << "f_proj: " << f_proj <<std::endl;
+    // std::cout << "dp_proj: " << dp_proj <<std::endl;
+
+    // std::cout << f_proj << ","<< dp_proj<< std::endl;
     if (t_max_ < 0) {status = Status::TIMEOUT; return;}
     else if (f_proj > f_thresh_) {
       if (kDetectContact==false) {

@@ -5,3 +5,4 @@ float64[6] fd
 float64 timeout
 float64 f_thresh
 float64 displacement
+franka_controllers/Gain controller_gain

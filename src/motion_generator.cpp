@@ -120,6 +120,9 @@ namespace franka_motion_primitive{
     primitive_param_["speed_factor"] = 0.1;
     primitive_param_["timeout"] = 5.;
 
+    // set compliant frame
+    c_frame_->set_compliant_frame(p, q);
+
     // setting primitive
     main_primitive_->configure(primitive_param_);
 
@@ -134,10 +137,7 @@ namespace franka_motion_primitive{
     f_ee_filter_ = f0_ee_;
     // filter gain
     filter_gain_ = kDeltaT / (kDeltaT + 1/(2*M_PI*kCutoffFrequency));
-    std::cout << filter_gain_ <<std::endl;
-
-    // set compliant frame
-    c_frame_->set_compliant_frame(p, q);
+    // std::cout << filter_gain_ <<std::endl;
 
     target_primitive_type_ = PrimitiveType::MoveToPose;
     execution_status_ = Status::EXECUTING;
@@ -265,7 +265,7 @@ namespace franka_motion_primitive{
     ROS_INFO("receive command");
 
     target_primitive_type_ = msg->type;
-    std::cout << int(msg->type) << std::endl;
+    std::cout <<  int(msg->type) << std::endl;
     msg2PrimitiveParam(primitive_param_, msg);
 
     kReceiveCommand = true;
@@ -452,6 +452,7 @@ namespace franka_motion_primitive{
       out["speed_factor"] = req.constant_velocity_param.speed_factor;
       out["timeout"] = req.constant_velocity_param.timeout;
       out["f_thresh"] = req.constant_velocity_param.f_thresh;
+      out["controller_gain_msg"] = req.constant_velocity_param.controller_gain;
     }
     else if (target_primitive_type_ == PrimitiveType::AdmittanceMotion) {
       Vector6d fd, kd;
@@ -462,6 +463,7 @@ namespace franka_motion_primitive{
       out["fd"] = fd;
       out["timeout"] = req.admittance_motion_param.timeout;
       out["z_thresh"] = req.admittance_motion_param.z_thresh;
+      out["controller_gain_msg"] = req.admittance_motion_param.controller_gain;
 
     }
     else if (target_primitive_type_ == PrimitiveType::Displacement){
@@ -491,6 +493,7 @@ namespace franka_motion_primitive{
       out["timeout"] = req.displacement_param.timeout;
       out["f_thresh"] = req.displacement_param.f_thresh;
       out["displacement"] = req.displacement_param.displacement;
+      out["controller_gain_msg"] = req.displacement_param.controller_gain;
     }
   }
 }
