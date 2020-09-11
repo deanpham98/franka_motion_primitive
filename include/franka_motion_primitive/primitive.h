@@ -1,6 +1,7 @@
 #include "utils.h"
 
 namespace franka_motion_primitive{
+
   class PrimitiveBase {
     protected:
       // transform world state to task state
@@ -30,6 +31,11 @@ namespace franka_motion_primitive{
       // shared compliant frame
       std::shared_ptr<CompliantFrame> compliant_frame_;
 
+      // task selection matrix
+      Matrix6d S_task_;
+      // base frame selection matrix
+      Matrix6d S_base_;
+
     public:
       PrimitiveBase() {
         t_exec_ = 0; t_max_ = 5.; Kp_.setIdentity(); Kd_.setIdentity();
@@ -41,6 +47,8 @@ namespace franka_motion_primitive{
         //   controller_gain_.kp[i] = kp_init_(i);
         // }
         compliant_frame_ = std::make_shared<CompliantFrame>();
+        S_task_.setIdentity();
+        S_base_.setIdentity();
       }
 
       PrimitiveBase(std::shared_ptr<CompliantFrame>& c_frame){

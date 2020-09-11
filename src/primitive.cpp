@@ -67,7 +67,6 @@ namespace franka_motion_primitive{
       cmd.pose.p = s0_.pose.p + k * delta_x_.head(3);
       // cmd.pose.q = slerp(s0_.pose.q, pd_.q, k);
       cmd.pose.q = s0_.pose.q.slerp(k, pd_base_.q);
-      // std::cout << "q_command" << cmd.pose.q.coeffs() << std::endl;
       cmd.v = k_vel * dx_traj_max_;
     }
     else {
@@ -75,14 +74,16 @@ namespace franka_motion_primitive{
       cmd.pose.q.coeffs() = pd_base_.q.coeffs();
       cmd.v.setZero();
     }
-    cmd.S.setIdentity();
-    for (size_t i = 0; i< 6; ++i){
-      if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
-      // if (std::abs(fd_(i)) >= 1e-2) {cmd.S(i, i) = 0;}
-    }
+    // cmd.S.setIdentity();
+    // for (size_t i = 0; i< 6; ++i){
+    //   if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+    //   // if (std::abs(fd_(i)) >= 1e-2) {cmd.S(i, i) = 0;}
+    // }
+    cmd.S = S_base_;
 
     // update compliant frame
-    compliant_frame_->set_compliant_frame(cmd.pose);
+    // compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->update_compliant_frame(cmd.pose, s.pose, cmd.S);
     compliant_frame_->set_fd(cmd.f);
   }
 
@@ -97,8 +98,8 @@ namespace franka_motion_primitive{
 
     // transform target to base frame
     transform_pose(pd_base_, pd_, task_frame_);
-
     // quat to rotation matrix
+
     // WARNING: this is redundant (computed in transform_pose)
     //          solution: add rotation matrix to Pose struct?
     Matrix3d R(task_frame_.q);
@@ -111,15 +112,16 @@ namespace franka_motion_primitive{
     fd_base_.head(3) = R*fd_.head(3);
     fd_base_.tail(3) = R*fd_.tail(3);
 
+    // selection matrix in task frame
+    for (size_t i = 0; i< 6; ++i){
+      if (fd_(i) != 0.) {S_task_(i, i) = 0;}
+    }
+
+    // transform to base frame
+    transform_selection_matrix(S_base_, S_task_, R);
+
     // reset time
     t_exec_ = 0;
-
-    // std::cout << pd_base_.p <<std::endl<< std::endl;
-    // std::cout << pd_base_.q.coeffs() <<std::endl<< std::endl;
-    // std::cout << s0_.pose.p <<std::endl<< std::endl;
-    // std::cout << s0_.pose.q.coeffs() <<std::endl<< std::endl;
-
-    // std::cout << fd_base_ <<std::endl<< std::endl;
   }
 
   void MoveToPose::check_terminate(Status& status, const State& state){
@@ -269,17 +271,19 @@ namespace franka_motion_primitive{
     cmd.pose.q = qd_;
 
     // selection matrix
-    cmd.S.setIdentity();
-    for (size_t i = 0; i< 6; ++i){
-      // if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
-      if (std::abs(fd_base_(i)) >= 1.) {
-        cmd.S(i, i) = 0;
-        if (i <3)
-          cmd.pose.p(i) = s.pose.p(i);
-      }
-    }
+    // cmd.S.setIdentity();
+    // for (size_t i = 0; i< 6; ++i){
+    //   // if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+    //   if (std::abs(fd_base_(i)) >= 1.) {
+    //     cmd.S(i, i) = 0;
+    //     if (i <3)
+    //       cmd.pose.p(i) = s.pose.p(i);
+    //   }
+    // }
+    cmd.S = S_base_;
     // set compliant frame
-    compliant_frame_->set_compliant_frame(cmd.pose);
+    // compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->update_compliant_frame(cmd.pose, s.pose, cmd.S);
     compliant_frame_->set_fd(cmd.f);
   }
 
@@ -311,7 +315,13 @@ namespace franka_motion_primitive{
     fd_base_.head(3) = R*fd_.head(3);
     fd_base_.tail(3) = R*fd_.tail(3);
 
-    // std::cout << fd_base_ << std::endl;
+    // selection matrix in task frame
+    for (size_t i = 0; i< 6; ++i){
+      if (fd_(i) != 0.) {S_task_(i, i) = 0;}
+    }
+
+    // transform to base frame
+    transform_selection_matrix(S_base_, S_task_, R);
 
     // reset time
     t_exec_ = 0.;
@@ -495,16 +505,18 @@ namespace franka_motion_primitive{
     // cmd.f = fd_;
 
     // selection matrix
-    cmd.S.setIdentity();
-    for (size_t i = 0; i< 6; ++i){
-      if (std::abs(fd_base_(i)) >= 1.) {
-        cmd.S(i, i) = 0;
-        if (i <3)
-          cmd.pose.p(i) = s.pose.p(i);
-      }
-    }
+    // cmd.S.setIdentity();
+    // for (size_t i = 0; i< 6; ++i){
+    //   if (std::abs(fd_base_(i)) >= 1.) {
+    //     cmd.S(i, i) = 0;
+    //     if (i <3)
+    //       cmd.pose.p(i) = s.pose.p(i);
+    //   }
+    // }
+    cmd.S = S_base_;
     // update compliant frame
     compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->update_compliant_frame(cmd.pose, s.pose, cmd.S);
     compliant_frame_->set_fd(cmd.f);
 
   }
@@ -520,6 +532,14 @@ namespace franka_motion_primitive{
     // transform to base frame
     fd_base_.head(3) = R*fd_.head(3);
     fd_base_.tail(3) = R*fd_.tail(3);
+
+    // selection matrix in task frame
+    for (size_t i = 0; i< 6; ++i){
+      if (fd_(i) != 0.) {S_task_(i, i) = 0;}
+    }
+
+    // transform to base frame
+    transform_selection_matrix(S_base_, S_task_, R);
 
     // reset time
     t_exec_ = 0;
@@ -573,7 +593,13 @@ namespace franka_motion_primitive{
     fd_base_.head(3) = R*fd_.head(3);
     fd_base_.tail(3) = R*fd_.tail(3);
 
-    // std::cout << fd_base_ << std::endl;
+    // selection matrix in task frame
+    for (size_t i = 0; i< 6; ++i){
+      if (fd_(i) != 0.) {S_task_(i, i) = 0;}
+    }
+
+    // transform to base frame
+    transform_selection_matrix(S_base_, S_task_, R);
 
     // reset time
     t_exec_ = 0.;
@@ -674,16 +700,18 @@ namespace franka_motion_primitive{
 
     // selection matrix
     cmd.S.setIdentity();
-    for (size_t i = 0; i< 6; ++i){
-      // if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
-      if (std::abs(fd_base_(i)) >= 1.) {
-        cmd.S(i, i) = 0;
-        if (i <3)
-          cmd.pose.p(i) = s.pose.p(i);
-      }
-    }
+    // for (size_t i = 0; i< 6; ++i){
+    //   // if (fd_base_(i) != 0.) {cmd.S(i, i) = 0;}
+    //   if (std::abs(fd_base_(i)) >= 1.) {
+    //     cmd.S(i, i) = 0;
+    //     if (i <3)
+    //       cmd.pose.p(i) = s.pose.p(i);
+    //   }
+    // }
+    cmd.S = S_base_;
     // set compliant frame
-    compliant_frame_->set_compliant_frame(cmd.pose);
+    // compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->update_compliant_frame(cmd.pose, s.pose, cmd.S);
     compliant_frame_->set_fd(cmd.f);
   }
 

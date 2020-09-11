@@ -77,6 +77,22 @@ namespace franka_motion_primitive{
       void set_compliant_frame(const Pose& in) {frame_.p = in.p; frame_.q = in.q;}
       void set_compliant_frame(const Vector3d& pos, const Quaterniond& quat)
         {frame_.p = pos; frame_.q = quat;}
+      /**
+       *  update compliant frame based on the current command, current pose and
+       *  selection matrix. The compliant frame is set to the current pose in the
+       *  force-controlled direction and set to command otherwise
+       *
+       *  @param cmd   current control command
+       *  @param pc    current end-effector pose
+       *  @param S     selection matrix in the base frame
+       */
+      void update_compliant_frame(const Pose& cmd, const Pose& pc, const Matrix6d& S){
+        Matrix3d I;
+        I = Matrix3d::Identity();
+        frame_.p = S.topLeftCorner(3, 3)*cmd.p + (I - S.topLeftCorner(3, 3))*pc.p;
+        // NOTE not set based on selection matrix because not do torque control
+        frame_.q = cmd.q;
+      }
       void set_fd(const Vector6d& f) {fd_ = f;}
   };
 
@@ -144,7 +160,14 @@ namespace franka_motion_primitive{
     }
   }
 
-
+  inline void transform_selection_matrix(
+      Matrix6d& out, const Matrix6d& S1, const Matrix3d& R21) {
+    /**
+     *  transform the selection matrix in frame 1 to frame 2.
+     */
+     out.topLeftCorner(3, 3) = R21 * S1.topLeftCorner(3, 3) * R21.transpose();
+     out.bottomRightCorner(3, 3) = R21 * S1.bottomRightCorner(3, 3) * R21.transpose();
+  }
 }
 
 #endif
