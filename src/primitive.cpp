@@ -113,6 +113,7 @@ namespace franka_motion_primitive{
     fd_base_.tail(3) = R*fd_.tail(3);
 
     // selection matrix in task frame
+    S_task_.setIdentity();
     for (size_t i = 0; i< 6; ++i){
       if (fd_(i) != 0.) {S_task_(i, i) = 0;}
     }
@@ -316,6 +317,7 @@ namespace franka_motion_primitive{
     fd_base_.tail(3) = R*fd_.tail(3);
 
     // selection matrix in task frame
+    S_task_.setIdentity();
     for (size_t i = 0; i< 6; ++i){
       if (fd_(i) != 0.) {S_task_(i, i) = 0;}
     }
@@ -445,7 +447,7 @@ namespace franka_motion_primitive{
     Vector6d fd;
     compliant_frame_->get_fd(fd);
     // progressively change the value of controlled force
-    cmd.f = fd_base_*0.01 + fd*0.99;
+    cmd.f = fd_base_*0.001 + fd*0.999;
 
     // Vector6d fd;
     if (status == Status::EXECUTING) {
@@ -482,6 +484,7 @@ namespace franka_motion_primitive{
         // OR
         Quaterniond qd = qe_d * qd_;
         qd_ = qd;
+
         cmd.v= v_ee;
       }
       else {
@@ -534,6 +537,7 @@ namespace franka_motion_primitive{
     fd_base_.tail(3) = R*fd_.tail(3);
 
     // selection matrix in task frame
+    S_task_.setIdentity();
     for (size_t i = 0; i< 6; ++i){
       if (fd_(i) != 0.) {S_task_(i, i) = 0;}
     }
@@ -594,6 +598,7 @@ namespace franka_motion_primitive{
     fd_base_.tail(3) = R*fd_.tail(3);
 
     // selection matrix in task frame
+    S_task_.setIdentity();
     for (size_t i = 0; i< 6; ++i){
       if (fd_(i) != 0.) {S_task_(i, i) = 0;}
     }
@@ -759,6 +764,85 @@ namespace franka_motion_primitive{
     }
     else {status = Status::SUCCESS; return;}
     status = Status::EXECUTING;
+  }
+
+  void MoveToPoseFeedback::update_control(
+      ControlSignal& cmd, Status& status,
+      const State& s, const double& dt) {
+    if (t_exec_ == 0) {
+      s0_ = s;
+      // plan from compliant frame
+      // Pose c_pose;
+      // compliant_frame_->get_compliant_frame(c_pose);
+      // s0_.pose = c_pose;
+      plan_trajectory();
+    }
+
+    // update time
+    t_exec_ += dt;
+    t_max_ -= dt;
+
+    // update control
+    // force
+    Vector6d fd;
+    compliant_frame_->get_fd(fd);
+    // progressively change the value of controlled force
+    cmd.f = fd_base_*0.01 + fd*0.99;
+
+    // ---- motion
+    // desired pose
+    Vector3d pd;
+    Quaterniond qd;
+    if (t_exec_ < t_traj_syn_){
+      double k = std::pow(std::sin(0.5 * M_PI * t_exec_ / t_traj_syn_), 2);
+      double k_vel = std::sin(M_PI * t_exec_ / t_traj_syn_);
+      // desired pose
+      pd = s0_.pose.p + k * delta_x_.head(3);
+      qd = s0_.pose.q.slerp(k, pd_base_.q);
+      cmd.v = k_vel * dx_traj_max_;
+    }
+    else {
+      pd = pd_base_.p;
+      qd.coeffs() = pd_base_.q.coeffs();
+      cmd.v.setZero();
+    }
+    // selection matrix
+    cmd.S = S_base_;
+
+    // ---- command pose (compliant frame) high-level control law
+    // current compliant frmae
+    Pose c_frame;
+    compliant_frame_->get_compliant_frame(c_frame);
+    // ---- compute error
+    Vector3d ep;    // position error
+    Vector3d er;    // rotation error
+    ep << pd - s.pose.p;
+    cmd.pose.p = c_frame.p +  kOuterPositionStiffness * ep * dt;
+    // orientation error
+    if (s.pose.q.coeffs().dot(qd.coeffs()) < 0.) qd.coeffs() << -qd.coeffs();
+    // quaternion "error"
+    Quaterniond qe(qd * s.pose.q.inverse());
+    // angle axis error
+    AngleAxisd aae(qe);
+    er << aae.axis() * aae.angle();
+    // desired velocity
+    aae.angle() = kOuterOrientationStiffness * aae.angle() * dt;
+    Quaterniond qr(aae);
+    cmd.pose.q = qr*c_frame.q;
+
+    // update status
+    check_terminate(status, ep, er);
+
+    // update compliant frame
+    // compliant_frame_->set_compliant_frame(cmd.pose);
+    compliant_frame_->update_compliant_frame(cmd.pose, s.pose, cmd.S);
+    compliant_frame_->set_fd(cmd.f);
+  }
+
+  void MoveToPoseFeedback::check_terminate(Status& status, const Vector3d& ep, const Vector3d& er){
+    if (t_exec_ < t_traj_syn_*kTimeoutCoeff &&
+        (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
+    else {status = Status::SUCCESS;}
   }
 
 }

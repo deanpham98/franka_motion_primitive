@@ -39,7 +39,8 @@ namespace franka_motion_primitive{
   enum class PrimitiveGroup {
     MoveToPose,
     ConstantVelocity,
-    AdmittanceMotion
+    AdmittanceMotion,
+    
   };
 
   // High-level command (can shared with franka_controllers packaage)
@@ -165,8 +166,22 @@ namespace franka_motion_primitive{
     /**
      *  transform the selection matrix in frame 1 to frame 2.
      */
+     out.setIdentity();
      out.topLeftCorner(3, 3) = R21 * S1.topLeftCorner(3, 3) * R21.transpose();
      out.bottomRightCorner(3, 3) = R21 * S1.bottomRightCorner(3, 3) * R21.transpose();
+  }
+
+  // quaternion error in the base frame
+  inline void quat_error(Vector3d& out, Quaterniond& q1, const Quaterniond& q2){
+    if (q1.coeffs().dot(q2.coeffs()) < 0.) q1.coeffs() << -q1.coeffs();
+    // quaternion "error"
+    Quaterniond qe(q2 * q1.inverse());
+    // angle axis error
+    AngleAxisd aae(qe);
+    out << aae.axis() * aae.angle();
+    for (size_t i=0; i<3; i++){
+      if (std::isnan(out(i))) out(i) =0.;
+    }
   }
 }
 

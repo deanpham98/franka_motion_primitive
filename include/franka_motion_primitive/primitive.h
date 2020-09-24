@@ -110,7 +110,7 @@ namespace franka_motion_primitive{
       // return the status of the primitive, g(s)
       void check_terminate(Status& status, const State& state) override;
 
-    private:
+    protected:
       // plan for trajectory parameterers
       void plan_trajectory();
 
@@ -173,7 +173,7 @@ namespace franka_motion_primitive{
       // stopping motino
       bool kDetectContact;
       int stopping_step_;
-      const int kMaxStoppingStep{1};
+      const int kMaxStoppingStep{100};
       const double kAlphaStop{0.95}; // p = k*p + (1-k)*pd
 
       // threshhold force
@@ -271,6 +271,46 @@ namespace franka_motion_primitive{
       bool kDisplacementReach;
       // initial pose
       Pose ps0_;
+  };
+
+  // another implementation of position control
+  class MoveToPoseFeedback : public MoveToPose {
+    public:
+      MoveToPoseFeedback() : MoveToPose() {
+        Kp_c_.setIdentity();
+        for (size_t i = 0; i<3; i++){
+          Kp_c_(i, i) = kOuterPositionStiffness;
+          Kp_c_(i+3, i+3) = kOuterOrientationStiffness;
+          Kd_c_(i, i) = 2*std::sqrt(kOuterPositionStiffness);
+          Kd_c_(i+3, i+3) = 2*std::sqrt(kOuterOrientationStiffness);
+        }
+      }
+      MoveToPoseFeedback(std::shared_ptr<CompliantFrame>& c_frame)
+          : MoveToPose(c_frame) {}
+
+      void update_control(
+          ControlSignal& cmd, Status& status,
+          const State& s, const double& dt) override;
+
+      // set target for the primitive (represented in task frame)
+      // void configure(ParamMap& params) override;
+
+      // return the status of the primitive, g(s)
+      // void check_terminate(Status& status, const State& state) override;
+      void check_terminate(Status& status, const Vector3d& ep, const Vector3d& er);
+
+    private:
+      // outer loop const
+      const double kOuterPositionStiffness = 1.;
+      const double kOuterOrientationStiffness = 1.;
+      // threshold for stopping
+      const double kPositionThresh = 1e-3;
+      const double kOrientationThresh = 1e-2;
+      // maximum execution time, as a fraction of trajectory time
+      const double kTimeoutCoeff = 5.;
+      // gain
+      Matrix6d Kp_c_;
+      Matrix6d Kd_c_;
   };
 
   // construct, run primitives

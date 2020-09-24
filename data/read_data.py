@@ -8,7 +8,7 @@ from criros.filters import ButterLowPass
 
 # FILE_NAME = "triangle_data_11_43_07.json"
 # FILE_NAME = "square_data_11_21_07.json"
-FILE_NAME = "estimate_clearance_11_28_07.json"
+FILE_NAME = "data_18_13_03.json"
 DATA_RATE = 500
 
 # calculate [x] of R^3 vector
@@ -21,6 +21,22 @@ def read_data(f):
     with open(f, "r") as p:
         d = json.load(p)
         return d
+
+def get_key(d, k):
+    q  = [j[1] for j in d[k]]
+    tq = [j[0] for j in d[k]]
+    q = np.array(q)
+    tq = np.array(tq)
+    return tq, q
+
+# align d1 with d2
+def align(t1, d1, t2, d2):
+    d1_align = np.zeros_like(d2)
+    t1_align_idx = []
+    for t in t2:
+        k = np.argmin(np.abs(np.array(t1) - t))
+        t1_align_idx.append(k)
+    return t1[t1_align_idx], d1[t1_align_idx]
 
 def filter(x, alpha):
     x_filter = np.zeros_like(x)
@@ -132,46 +148,48 @@ def transform_ee(d):
     plt.show()
     # print(len(f_ee), len(q))
 
-def plot_position(d, axis=0):
+def plot_position(d):
     p = [k[1] for k in d["p"]]
+    tp = [k[0] for k in d["p"]]
     p = np.array(p)
-
-    # filter = ButterLowPass(100, 500, 7)
-    # # filter.zi = np.zeros((3, 1))
-    # p_filter = filter(p[:, axis].reshape(1, len(p)))
-    # print(p_filter.shape)
 
     fig, ax = plt.subplots()
     ax.plot(range(len(p)), p[:, axis])
     # ax.plot(range(p_filter.shape[1]), p_filter.T)
     plt.show()
 
-def plot_position_error(d, trans_dof=True):
-    p = [k[1] for k in d["p"]]
-    tp = [k[0] for k in d["p"]]
-    p = np.array(p)
-    pd = [k[1] for k in d["pd"]]
-    tpd = [k[0] for k in d["pd"]]
-    pd = np.array(pd)
+def plot_position_error(d):
+    tp, p = get_key(d, "p")
+    tpd, pd = get_key(d, "pd")
+    tq, q = get_key(d, "q")
+    tqd, qd = get_key(d, "qd")
+    tp_align, p_align = align(tp, p, tpd, pd)
+    tq_align, q_align = align(tq, q, tqd, qd)
 
-    p_align = np.zeros_like(pd)
-    tp_align_idx = []
-    for t in tpd:
-        k = np.argmin(np.abs(np.array(tp) - t))
-        tp_align_idx.append(k)
-    p_align = p[tp_align_idx]
+    # error
+    r = []
+    rd = []
+    er = []
+    for qi, qid in zip(q_align, qd):
+        r.append(quat2vec(qi))
+        rd.append(quat2vec(qid))
+        er.append(quat_error(qi, qid))
+    r = np.array(r)
+    rd = np.array(rd)
+    er = np.array(er)
 
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
-    if trans_dof:
-        ax1.plot(range(len(p_align)), p_align[:, 0] - pd[:, 0])
-        ax2.plot(range(len(p_align)), p_align[:, 1] - pd[:, 1])
-        ax3.plot(range(len(p_align)), p_align[:, 2] - pd[:, 2])
-    else:
-        pass
-
-    # ax.plot(range(p_filter.shape[1]), p_filter.T)
-    plt.show()
-
+    fig, ax = plt.subplots(3, 2)
+    fig2, ax2 = plt.subplots(3, 2)
+    for i in range(3):
+        ax[i, 0].plot(range(len(p_align)), p_align[:, i] - pd[:, i])
+        ax[i, 1].plot(range(len(q_align)), r[:, i] - rd[:, i])
+        ax2[i, 0].plot(range(len(p_align)), p_align[:, i])
+        ax2[i, 0].plot(range(len(p_align)), pd[:, i])
+        ax2[i, 1].plot(range(len(q_align)), r[:, i])
+        ax2[i, 1].plot(range(len(q_align)), rd[:, i])
+        ax2[i, 0].legend(["s", "d"])
+        ax2[i, 1].legend(["s", "d"])
+    return ax, ax2
 
 def estimate_clearance(d):
     p = [k[1] for k in d["p"]]
@@ -204,6 +222,18 @@ def estimate_clearance(d):
     print("clearance x: {}".format(max(p[:, 0]) - min(p[:, 0])))
     # print("clearance y: {}".format(max(p[:, 1]) - min(p[:, 1])))
 
+def quat2vec(q):
+    r = Q.quat2axangle(q)
+    if r[0][0] * r[1] < 0:
+        r[0] = -r[0]
+        r[1] = 2*np.pi - r[1]
+    return r[0]*r[1]
+
+def quat_error(q1, q2):
+    qr = Q.qmult(q2, Q.qinverse(q1))
+    re = Q.quat2axangle(qr)
+    return re[0] * re[1]
+
 if __name__ == '__main__':
     r = rospkg.RosPack()
     pkg_dir = r.get_path("franka_motion_primitive")
@@ -215,4 +245,5 @@ if __name__ == '__main__':
     # transform_ee(d)
     # plot_position(d, axis=1)
     # estimate_clearance(d)
-    # plot_position_error(d)
+    plot_position_error(d)
+    plt.show()

@@ -45,7 +45,7 @@ namespace franka_motion_primitive{
     }
 
     // TODO: read no_primitive_type_ from config
-    no_primitive_types_ = 4; // default value
+    no_primitive_types_ = 5; // default value
 
     // common compliant frame
     c_frame_ = std::make_shared<CompliantFrame>();
@@ -63,6 +63,8 @@ namespace franka_motion_primitive{
     primitive_container_[PrimitiveType::Displacement] =
       std::make_shared<franka_motion_primitive::Displacement>(c_frame_);
 
+    primitive_container_[PrimitiveType::MoveToPoseFeedback] =
+      std::make_shared<franka_motion_primitive::MoveToPoseFeedback>(c_frame_);
 
     // set main primitive to move to pose primtiive
     main_primitive_ = primitive_container_[PrimitiveType::MoveToPose];
@@ -253,6 +255,7 @@ namespace franka_motion_primitive{
       for (size_t i=0; i<6; ++i) {
         pub_state_.msg_.f_filter[i] = s.f[i];
         pub_state_.msg_.f[i] = f[i] - f0_[i];
+        pub_state_.msg_.fd[i] = cmd.f(i);
         pub_state_.msg_.f_ee[i] = s.f_ee[i];
         pub_state_.msg_.status = int(execution_status_);
       }
@@ -394,7 +397,8 @@ namespace franka_motion_primitive{
 
   void MotionGenerator::service2PrimitiveParam(ParamMap& out, RunPrimitive::Request& req){
     out.clear();
-    if (target_primitive_type_ == PrimitiveType::MoveToPose){
+    if (target_primitive_type_ == PrimitiveType::MoveToPose  ||
+        target_primitive_type_ == PrimitiveType::MoveToPoseFeedback){
       Vector3d task_frame_pos, target_pos;
       Quaterniond task_frame_quat, target_quat;
       Vector6d fd;
