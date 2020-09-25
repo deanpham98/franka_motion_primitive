@@ -462,7 +462,21 @@ namespace franka_motion_primitive{
         // desired end-effector velocity
         Vector6d v_ee;
         // v_ee = -kd_ * s.f;
+        // v_ee =  -kd_ * f0;
+        // OR vibration
+        double inc = ceil(t_exec_*kRotationalFreq);
+        // Vector3d omega_vibration;
+        // for (size_t i=0; i<3; ++i){
+        //   omega_vibration(i) = pow(-1, inc)*kRotationalMag*std::sin(2*M_PI*kRotationalFreq*t_exec_);
+        // }
+        double omega_vibration;
+        omega_vibration = pow(-1, inc)*kRotationalMag*std::sin(2*M_PI*kRotationalFreq*t_exec_);
         v_ee = -kd_ * f0;
+        for (size_t i=0; i<3;i++){
+          v_ee(i+3) = v_ee(i+3) + omega_vibration;
+
+        }
+
         // pd_ = s.pose.p + dt*v_ee.head(3);
         // OR
         Vector3d pd = pd_ + dt*v_ee.head(3);
@@ -840,8 +854,11 @@ namespace franka_motion_primitive{
   }
 
   void MoveToPoseFeedback::check_terminate(Status& status, const Vector3d& ep, const Vector3d& er){
-    if (t_exec_ < t_traj_syn_*kTimeoutCoeff &&
-        (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
+    // if (t_exec_ < t_traj_syn_*kTimeoutCoeff &&
+    //     (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
+    bool isSuccess = 
+    if (t_max_ > 0 &&
+          (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
     else {status = Status::SUCCESS;}
   }
 

@@ -232,6 +232,10 @@ namespace franka_motion_primitive{
 
       // store value of t_max
       double timeout_;
+
+      // vibration motion
+      double kRotationalFreq{1.};
+      double kRotationalMag{0.01};
   };
 
   class Displacement : public ConstantVelocity {
