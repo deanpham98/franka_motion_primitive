@@ -64,7 +64,7 @@ namespace franka_motion_primitive{
       std::make_shared<franka_motion_primitive::Displacement>(c_frame_);
 
     primitive_container_[PrimitiveType::MoveToPoseFeedback] =
-      std::make_shared<franka_motion_primitive::MoveToPoseFeedback>(c_frame_);
+      std::make_shared<franka_motion_primitive::MoveToPoseFeedback>(c_frame_, nh);
 
     // set main primitive to move to pose primtiive
     main_primitive_ = primitive_container_[PrimitiveType::MoveToPose];
@@ -261,7 +261,6 @@ namespace franka_motion_primitive{
       }
       pub_state_.unlockAndPublish();
     }
-
   }
 
   void MotionGenerator::primitiveCommandCallback(const RunPrimitiveCommandConstPtr& msg){

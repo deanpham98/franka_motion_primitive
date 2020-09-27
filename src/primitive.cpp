@@ -846,17 +846,28 @@ namespace franka_motion_primitive{
 
     // update status
     check_terminate(status, ep, er);
+    er_.head(3) = ep;
+    er_.tail(3) = er;
 
     // update compliant frame
     // compliant_frame_->set_compliant_frame(cmd.pose);
     compliant_frame_->update_compliant_frame(cmd.pose, s.pose, cmd.S);
     compliant_frame_->set_fd(cmd.f);
+
+    // publish state
+    // if (kInitPublisher) {
+    // if (publish_rate_() && pub_state_.trylock()){
+    //   for (size_t i=0; i<6; ++i) {
+    //     pub_state_.msg_.data[i] = er_(i);
+    //   }
+    //   pub_state_.unlockAndPublish();
+    // }
+    // }
   }
 
   void MoveToPoseFeedback::check_terminate(Status& status, const Vector3d& ep, const Vector3d& er){
     // if (t_exec_ < t_traj_syn_*kTimeoutCoeff &&
     //     (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
-    bool isSuccess = 
     if (t_max_ > 0 &&
           (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
     else {status = Status::SUCCESS;}

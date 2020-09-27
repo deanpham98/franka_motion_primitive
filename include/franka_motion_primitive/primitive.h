@@ -1,4 +1,7 @@
 #include "utils.h"
+#include <std_msgs/Float64MultiArray.h>
+#include <realtime_tools/realtime_publisher.h>
+#include <franka_hw/trigger_rate.h>
 
 namespace franka_motion_primitive{
 
@@ -288,9 +291,16 @@ namespace franka_motion_primitive{
           Kd_c_(i, i) = 2*std::sqrt(kOuterPositionStiffness);
           Kd_c_(i+3, i+3) = 2*std::sqrt(kOuterOrientationStiffness);
         }
+        kInitPublisher = false;
       }
       MoveToPoseFeedback(std::shared_ptr<CompliantFrame>& c_frame)
-          : MoveToPose(c_frame) {}
+          : MoveToPose(c_frame) {kInitPublisher = false;}
+
+      MoveToPoseFeedback(std::shared_ptr<CompliantFrame>& c_frame, ros::NodeHandle& nh)
+          : MoveToPose(c_frame) {
+        pub_state_.init(nh, "pose_error", 1);
+        kInitPublisher = true;
+      }
 
       void update_control(
           ControlSignal& cmd, Status& status,
@@ -304,6 +314,11 @@ namespace franka_motion_primitive{
       void check_terminate(Status& status, const Vector3d& ep, const Vector3d& er);
 
     private:
+      // publisher
+      realtime_tools::RealtimePublisher<std_msgs::Float64MultiArray> pub_state_;
+      franka_hw::TriggerRate publish_rate_{200.0};
+      bool kInitPublisher;
+
       // outer loop const
       const double kOuterPositionStiffness = 1.;
       const double kOuterOrientationStiffness = 1.;
@@ -315,6 +330,8 @@ namespace franka_motion_primitive{
       // gain
       Matrix6d Kp_c_;
       Matrix6d Kd_c_;
+      // desired pose
+      Vector6d er_;
   };
 
   // construct, run primitives

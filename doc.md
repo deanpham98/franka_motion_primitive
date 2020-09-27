@@ -1,4 +1,4 @@
-This package aims to provide primitives implementation based on the simulated counterparts (located in `~/n/simulation/experiment/pl-torque/pl_sim`). The requirements are
+7This package aims to provide primitives implementation based on the simulated counterparts (located in `~/n/simulation/experiment/pl-torque/pl_sim`). The requirements are
     - Must work with any controllers that receive "hybrid" command as inputs (pose + force)
     - Decoupled from the controller
 
@@ -95,3 +95,11 @@ The ideas for implementation is based on `ros_control` framework
 # 6/8
 - success for square but not for triangle
 - ~1mm clearance for triangle, 0.5mm for square
+
+
+# 14/8
+- test velocity range
+    - step 2: 0.01 - 0.06
+    - step 3: 0.01 - 0.05
+    - step 4: 0.01 - 0.07 (not larger)
+    
