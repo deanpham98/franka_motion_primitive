@@ -472,6 +472,8 @@ namespace franka_motion_primitive{
         double omega_vibration;
         omega_vibration = pow(-1, inc)*kRotationalMag*std::sin(2*M_PI*kRotationalFreq*t_exec_);
         v_ee = -kd_ * f0;
+        // NOTE, WARNING: for ft sensor
+        // v_ee = kd_ * f0;
         for (size_t i=0; i<3;i++){
           v_ee(i+3) = v_ee(i+3) + omega_vibration;
 
@@ -845,9 +847,11 @@ namespace franka_motion_primitive{
     cmd.pose.q = qr*c_frame.q;
 
     // update status
+    // Vector3d ep_f, er_f;
+    // ep_f << pd_base_.p - s.pose.p;
+    // Quaterniond qe_f(pd_base_.q * s.pose.q.inverse());
+    // AngleAxisd aae_f(qe_f);
     check_terminate(status, ep, er);
-    er_.head(3) = ep;
-    er_.tail(3) = er;
 
     // update compliant frame
     // compliant_frame_->set_compliant_frame(cmd.pose);
@@ -868,8 +872,17 @@ namespace franka_motion_primitive{
   void MoveToPoseFeedback::check_terminate(Status& status, const Vector3d& ep, const Vector3d& er){
     // if (t_exec_ < t_traj_syn_*kTimeoutCoeff &&
     //     (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
+    if (t_exec_ < t_traj_syn_) {
+      status = Status::EXECUTING;
+      return;
+    }
     if (t_max_ > 0 &&
-          (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh) ) {status = Status::EXECUTING;}
+          (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh)) {
+      status = Status::EXECUTING;
+      std::cout << ep.norm() << std::endl;
+      std::cout << er.norm() << std::endl << std::endl;
+      std::cout << t_exec_ << std::endl;
+    }
     else {status = Status::SUCCESS;}
   }
 

@@ -8,7 +8,9 @@
 
 namespace franka_motion_primitive{
 
-  bool MotionGenerator::init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& nh) {
+  bool MotionGenerator::init(hardware_interface::RobotHW* robot_hw,
+        // hardware_interface::ForceTorqueSensorInterface* ft_hw,
+        ros::NodeHandle& nh) {
     // TODO: controller ns config
     std::string controller_ns, controller_cmd_topic, gain_config_topic;
     controller_ns = "/hybrid_controller";
@@ -75,6 +77,12 @@ namespace franka_motion_primitive{
         &MotionGenerator::primitiveCommandCallback, this,
         ros::TransportHints().reliable().tcpNoDelay());
 
+    ft_sensor_.setZero();
+    kFtSubscribeInit = false;
+    sub_ft_sensor_ = nh.subscribe("/netft_data", 1,
+        &MotionGenerator::ftSensorCallback, this,
+        ros::TransportHints().reliable().tcpNoDelay());
+
     pub_controller_.init(nh, controller_cmd_topic, 1);
     pub_state_.init(nh, "state", 1);
     pub_gain_.init(nh, gain_config_topic, 1);
@@ -133,6 +141,14 @@ namespace franka_motion_primitive{
     // initial external force for compensation
     f0_ = Vector6d::Map(robot_state.O_F_ext_hat_K.data());
     f0_ee_ = Vector6d::Map(robot_state.K_F_ext_hat_K.data());
+    transform_wrench(f0_ss_, ft_sensor_, p_ee_ft_, q_ee_ft_);
+    // estimation force
+    std::array<double, 42> body_jacobian_array =
+      model_handle_->getBodyJacobian(franka::Frame::kEndEffector);
+    Eigen::Map<Eigen::Matrix<double, 6, 7>> Jb(body_jacobian_array.data());
+    // -- external torque
+    Vector7d tau_ext(Vector7d::Map(robot_state.tau_ext_hat_filtered.data()));
+    calc_ext_force(f0_ext_est_, Jb, tau_ext);
 
     // filter force
     f_filter_ = f0_;
@@ -211,11 +227,31 @@ namespace franka_motion_primitive{
     // update filter force
     f_filter_ = filter_gain_ * f + (1 - filter_gain_) * f_filter_;
     f_ee_filter_ = filter_gain_ * f_ee + (1 - filter_gain_) * f_ee_filter_;
+    // TODO get force torque sensor signals
+    Vector6d fe;
+    transform_wrench(fe, ft_sensor_, p_ee_ft_, q_ee_ft_);
+
+    // external estimation force
+    Vector6d fe_est;
+    std::array<double, 42> body_jacobian_array =
+      model_handle_->getBodyJacobian(franka::Frame::kEndEffector);
+    Eigen::Map<Eigen::Matrix<double, 6, 7>> Jb(body_jacobian_array.data());
+    // -- external torque
+    Vector7d tau_ext(Vector7d::Map(robot_state.tau_ext_hat_filtered.data()));
+    // tau friction
+    calc_ext_force(fe_est, Jb, tau_ext);
 
     // update initial force
+    // TODO reset ft sensor force
     if (kSetInitialForce) {
       f0_ = f_filter_;
       f0_ee_ = f_ee_filter_;
+      transform_wrench(f0_ss_, ft_sensor_, p_ee_ft_, q_ee_ft_);
+      // estimation force
+      f0_ext_est_ = fe_est;
+
+      // NOTE reset compliant frame
+      main_primitive_->reset_compliant_frame(p, q);
       kSetInitialForce = false;
     }
 
@@ -225,7 +261,10 @@ namespace franka_motion_primitive{
     s.pose.q = q;
     s.v = J*dq_filter_;   // base twist
     s.f = f_filter_ - f0_;
-    s.f_ee = f_ee_filter_ - f0_ee_;
+    // s.f_ee = f_ee_filter_ - f0_ee_;
+    // TODO set s.f_ee to fe
+    s.f_ee = -(fe - f0_ss_);    // FT sensor
+    // s.f_ee = fe_est - f0_ext_est_;
 
     // update control u = f(s, t)
     ControlSignal cmd;
@@ -253,10 +292,12 @@ namespace franka_motion_primitive{
     if (state_publish_rate_() && pub_state_.trylock()) {
       pub_state_.msg_.stamp = t_now.toSec();
       for (size_t i=0; i<6; ++i) {
-        pub_state_.msg_.f_filter[i] = s.f[i];
+        // pub_state_.msg_.f_filter[i] = s.f[i];
+        pub_state_.msg_.f_filter[i] = fe_est(i) - f0_ext_est_(i);
         pub_state_.msg_.f[i] = f[i] - f0_[i];
         pub_state_.msg_.fd[i] = cmd.f(i);
-        pub_state_.msg_.f_ee[i] = s.f_ee[i];
+        pub_state_.msg_.f_ee[i] = f_ee_filter_(i) - f0_ee_(i);
+        pub_state_.msg_.f_s[i] = fe(i) - f0_ss_(i);
         pub_state_.msg_.status = int(execution_status_);
       }
       pub_state_.unlockAndPublish();
@@ -498,6 +539,17 @@ namespace franka_motion_primitive{
       out["displacement"] = req.displacement_param.displacement;
       out["controller_gain_msg"] = req.displacement_param.controller_gain;
     }
+  }
+
+  void MotionGenerator::ftSensorCallback(const geometry_msgs::WrenchStamped& msg) {
+    ft_sensor_ << msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z;
+  }
+
+  void MotionGenerator::calc_ext_force(Vector6d& out, const Eigen::Matrix<double, 6, 7>& J, const Vector7d& tau_ext) {
+    // Eigen::Matrix<double, 6, 7> J_trans_inv;
+    Eigen::MatrixXd J_trans_inv;
+    pseudoInverse(J_trans_inv, J.transpose(), kInvDamp);
+    out = J_trans_inv * tau_ext;
   }
 }
 PLUGINLIB_EXPORT_CLASS(franka_motion_primitive::MotionGenerator,

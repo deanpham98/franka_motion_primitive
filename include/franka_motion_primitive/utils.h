@@ -40,7 +40,7 @@ namespace franka_motion_primitive{
     MoveToPose,
     ConstantVelocity,
     AdmittanceMotion,
-    
+
   };
 
   // High-level command (can shared with franka_controllers packaage)
@@ -182,6 +182,34 @@ namespace franka_motion_primitive{
     for (size_t i=0; i<3; i++){
       if (std::isnan(out(i))) out(i) =0.;
     }
+  }
+
+  // transform force torque
+  inline void transform_wrench(Vector6d& out, const Vector6d& f1, const Vector3d& p21, const Quaterniond& q21){
+    // rotation matrix
+    Matrix3d R21(q21);
+    // force
+    out.head(3) = R21 * f1.head(3);
+    // torque
+    Matrix3d p_tilde;
+    p_tilde << 0, -p21(2), p21(1),
+               p21(2), 0, -p21(0),
+               -p21(1), p21(0), 0;
+    out.tail(3) << R21 * f1.tail(3) + p_tilde*out.head(3);
+  }
+
+  inline void pseudoInverse(Eigen::MatrixXd& M_pinv_, const Eigen::MatrixXd& M_, double damp_ = 0.1) {
+    double lambda_ = damp_;
+
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(M_, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::JacobiSVD<Eigen::MatrixXd>::SingularValuesType sing_vals_ = svd.singularValues();
+    Eigen::MatrixXd S_ = M_;  // copying the dimensions of M_, its content is not needed.
+    S_.setZero();
+
+    for (int i = 0; i < sing_vals_.size(); i++)
+      S_(i, i) = (sing_vals_(i)) / (sing_vals_(i) * sing_vals_(i) + lambda_ * lambda_);
+
+    M_pinv_ = Eigen::MatrixXd(svd.matrixV() * S_.transpose() * svd.matrixU().transpose());
   }
 }
 

@@ -13,6 +13,7 @@
 #include <franka_motion_primitive/PrimitiveState.h>
 #include <franka_motion_primitive/RunPrimitiveCommand.h>
 #include <franka_motion_primitive/MotionGeneratorState.h>
+#include <geometry_msgs/WrenchStamped.h>
 // service
 #include <franka_motion_primitive/SetInitialForce.h>
 #include <franka_motion_primitive/RunPrimitive.h>
@@ -21,10 +22,14 @@
 #include <dynamic_reconfigure/server.h>
 #include <franka_motion_primitive/AdmittanceConfig.h>
 
+// ft sensor
+#include <hardware_interface/force_torque_sensor_interface.h>
+
 namespace franka_motion_primitive {
   class MotionGenerator : public controller_interface::MultiInterfaceController<
                                     franka_hw::FrankaModelInterface,
                                     franka_hw::FrankaStateInterface> {
+
   /**
    *  - Store reconfigurable primitives classes (main_primitive_)
    *  - Publish command to the controller through /${CONTROLLER_NAME}/command
@@ -49,7 +54,8 @@ namespace franka_motion_primitive {
    *
    */
   public:
-    bool init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& nh) override;
+    bool init(hardware_interface::RobotHW* robot_hw,
+              ros::NodeHandle& nh) override;
     void starting(const ros::Time&) override;
     void update(const ros::Time&, const ros::Duration& period) override;
 
@@ -57,6 +63,22 @@ namespace franka_motion_primitive {
     // read robot state
     std::unique_ptr<franka_hw::FrankaStateHandle> state_handle_;
     std::unique_ptr<franka_hw::FrankaModelHandle> model_handle_;
+    // ft sensor to ee pos
+    // Vector3d p_ee_ft_ =(Vector3d() << 0, 0, -0.069).finished();
+    // Quaterniond q_ee_ft_ = Quaterniond(0.7071, 0., 0, 0.7071);
+    Vector3d p_ee_ft_ =(Vector3d() << 0, 0, -0.069).finished();
+    // Quaterniond q_ee_ft_ = Quaterniond(0.7071, 0., 0, 0.7071);
+    Quaterniond q_ee_ft_ = Quaterniond(1., 0., 0, 0);
+    // subscribe to read force
+    ros::Subscriber sub_ft_sensor_;
+    void ftSensorCallback(const geometry_msgs::WrenchStamped& msg);
+    Vector6d ft_sensor_;
+    bool kFtSubscribeInit;
+
+    // external force estimation
+    const double kInvDamp = 0.2;
+    void calc_ext_force(Vector6d& out, const Eigen::Matrix<double, 6, 7>& J, const Vector7d& tau_ext);
+    Vector6d f0_ext_est_;
 
     Pose task_frame_;
 
@@ -98,6 +120,7 @@ namespace franka_motion_primitive {
     // offset for measured force
     Vector6d f0_;
     Vector6d f0_ee_;
+    Vector6d f0_ss_;
     // filter force
     Vector6d f_filter_;
     Vector6d f_ee_filter_;

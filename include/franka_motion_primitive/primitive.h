@@ -83,6 +83,10 @@ namespace franka_motion_primitive{
       // check terminating condition, return the status
       virtual void check_terminate(Status& status, const State& state) = 0;
 
+      void reset_compliant_frame(const Vector3d& p, const Quaterniond& q) {
+        compliant_frame_->set_compliant_frame(p, q);
+      }
+
       // NOTE: only used in admittancemotion
       virtual void SetAdmittanceGain(const Vector6d& kd) {} // do nothing
   };
@@ -238,7 +242,7 @@ namespace franka_motion_primitive{
 
       // vibration motion
       double kRotationalFreq{1.};
-      double kRotationalMag{0.01};
+      double kRotationalMag{0.0};
   };
 
   class Displacement : public ConstantVelocity {
