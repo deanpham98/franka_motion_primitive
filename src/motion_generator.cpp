@@ -13,7 +13,7 @@ namespace franka_motion_primitive{
         ros::NodeHandle& nh) {
     // TODO: controller ns config
     std::string controller_ns, controller_cmd_topic, gain_config_topic;
-    controller_ns = "/hybrid_controller";
+    controller_ns = "/variable_impedance_controller";
     controller_cmd_topic = controller_ns + "/command";
     gain_config_topic = controller_ns + "/gain_config";
 
@@ -272,14 +272,16 @@ namespace franka_motion_primitive{
 
     // publish to controller
     if (pub_controller_.trylock()){
-      for (size_t i =0; i <3; ++i){
-        pub_controller_.msg_.f[i] = cmd.f(i);
-        pub_controller_.msg_.f[i+3] = cmd.f(i+3);
+      for (size_t i = 0; i < 3; ++i){
+        pub_controller_.msg_.f[i] = s.f_ee(i);
+        pub_controller_.msg_.f[i+3] = s.f_ee(i+3);
         pub_controller_.msg_.S[i] = cmd.S(i, i);
         pub_controller_.msg_.S[i+3] = cmd.S(i+3, i+3);
         pub_controller_.msg_.v[i] = cmd.v(i);
         pub_controller_.msg_.v[i+3] = cmd.v(i+3);
         pub_controller_.msg_.p[i] = cmd.pose.p[i];
+        pub_controller_.msg_.fd[i] = cmd.f(i);
+        pub_controller_.msg_.fd[i + 3] = cmd.f(i + 3);
       }
       pub_controller_.msg_.q[0] = cmd.pose.q.w();
       pub_controller_.msg_.q[1] = cmd.pose.q.x();
@@ -431,7 +433,7 @@ namespace franka_motion_primitive{
 
     if (execution_status_ == Status::TIMEOUT) {res.status = PrimitiveStatus::TIMEOUT;}
     else {res.status = PrimitiveStatus::SUCCESS;}
-    ROS_INFO("done runnign service");
+    ROS_INFO("done running service");
     return true;
   }
 
@@ -449,15 +451,15 @@ namespace franka_motion_primitive{
       task_frame_quat = Quaterniond(req.move_to_pose_param.task_frame.quat[0],
                                     req.move_to_pose_param.task_frame.quat[1],
                                     req.move_to_pose_param.task_frame.quat[2],
-                                  req.move_to_pose_param.task_frame.quat[3]);
+                                    req.move_to_pose_param.task_frame.quat[3]);
 
       // target pose
       target_pos = Vector3d::Map(req.move_to_pose_param.target_pose.pos.data());
       // target_quat = Quaterniond(req.move_to_pose_param.target_pose.quat.data());
       target_quat = Quaterniond(req.move_to_pose_param.target_pose.quat[0],
-                                    req.move_to_pose_param.target_pose.quat[1],
-                                    req.move_to_pose_param.target_pose.quat[2],
-                                  req.move_to_pose_param.target_pose.quat[3]);
+                                req.move_to_pose_param.target_pose.quat[1],
+                                req.move_to_pose_param.target_pose.quat[2],
+                                req.move_to_pose_param.target_pose.quat[3]);
       // desired force
       fd = Vector6d::Map(req.move_to_pose_param.fd.data());
 
