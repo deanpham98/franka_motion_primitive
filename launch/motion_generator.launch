@@ -12,7 +12,7 @@
   </include>
 
 
-  <rosparam command="load" file="$(find franka_motion_primitive)/config/config.yaml" />
+  <rosparam command="load" file="$(find franka_example_controllers)/config/franka_example_controllers.yaml" />
   <!-- change publish rate -->
   <!-- <rosparam param="/franka_state_controller/publish_rate" subst_value="true">
     "$(arg publish_rate)"

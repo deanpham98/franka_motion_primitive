@@ -261,14 +261,20 @@ namespace franka_motion_primitive{
     s.pose.q = q;
     s.v = J*dq_filter_;   // base twist
     s.f = f_filter_ - f0_;
-    // s.f_ee = f_ee_filter_ - f0_ee_;
+    s.f_ee = f_ee_filter_ - f0_ee_;
     // TODO set s.f_ee to fe
-    s.f_ee = -(fe - f0_ss_);    // FT sensor
+    // s.f_ee = -(fe - f0_ss_);    // FT sensor
     // s.f_ee = fe_est - f0_ext_est_;
 
     // update control u = f(s, t)
     ControlSignal cmd;
     main_primitive_->update_control(cmd, execution_status_, s, period.toSec());
+
+    // if (cmd.v(1) > 0.001 || cmd.v(1) < -0.001) {
+    //   std::cout << "cmd.v = " << cmd.v << std::endl;
+    //   std::cout << "---------------" << std::endl;
+    // }
+
 
     // publish to controller
     if (pub_controller_.trylock()){
@@ -467,6 +473,7 @@ namespace franka_motion_primitive{
       out["timeout"] = req.move_to_pose_param.timeout;
       out["speed_factor"] = req.move_to_pose_param.speed_factor;
       out["controller_gain_msg"] = req.move_to_pose_param.controller_gain;
+
     }
     else if (target_primitive_type_ == PrimitiveType::ConstantVelocity){
       Vector3d task_frame_pos;
