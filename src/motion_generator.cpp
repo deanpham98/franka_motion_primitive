@@ -273,15 +273,11 @@ namespace franka_motion_primitive{
     // publish to controller
     if (pub_controller_.trylock()){
       for (size_t i = 0; i < 3; ++i){
-        // pub_controller_.msg_.f[i] = s.f_ee(i);
-        // pub_controller_.msg_.f[i+3] = s.f_ee(i+3);
-        // pub_controller_.msg_.S[i] = cmd.S(i, i);
-        // pub_controller_.msg_.S[i+3] = cmd.S(i+3, i+3);
+        pub_controller_.msg_.f[i] = cmd.f(i);
+        pub_controller_.msg_.f[i+3] = cmd.f(i+3);
         pub_controller_.msg_.v[i] = cmd.v(i);
         pub_controller_.msg_.v[i+3] = cmd.v(i+3);
         pub_controller_.msg_.p[i] = cmd.pose.p[i];
-        pub_controller_.msg_.f[i] = cmd.f(i);
-        pub_controller_.msg_.f[i + 3] = cmd.f(i + 3);
       }
       pub_controller_.msg_.q[0] = cmd.pose.q.w();
       pub_controller_.msg_.q[1] = cmd.pose.q.x();
