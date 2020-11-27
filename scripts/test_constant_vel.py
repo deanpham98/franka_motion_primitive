@@ -1,10 +1,10 @@
 import numpy as np
-from ros_interface import RosInterface
+from ros_interface import FrankaRosInterface
 import transforms3d.quaternions as Q
 
 class TestConstantVelocity:
     def __init__(self):
-        self.ros_interface =RosInterface()
+        self.ros_interface = FrankaRosInterface()
 
     def test_null_cmd(self):
         cmd = self.ros_interface.get_constant_velocity_cmd()

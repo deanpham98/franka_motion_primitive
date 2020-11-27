@@ -4,4 +4,4 @@ PoseMsg target_pose
 float64[6] fd              # desired force
 float64 speed_factor
 float64 timeout
-franka_controllers/Gain controller_gain
+franka_example_controllers/Gain controller_gain

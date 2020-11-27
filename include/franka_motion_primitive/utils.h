@@ -4,7 +4,7 @@
 #include <vector>
 #include <Eigen/Dense>
 
-#include <franka_controllers/Gain.h>
+#include <franka_example_controllers/Gain.h>
 
 #ifndef FRANKA_MOTION_PRIMITIVE_UTILS_H
 #define FRANKA_MOTION_PRIMITIVE_UTILS_H
@@ -107,7 +107,7 @@ namespace franka_motion_primitive{
         Vector3d,
         Quaterniond,
         Vector6d,
-        franka_controllers::Gain>;
+        franka_example_controllers::Gain>;
 
   using ParamMap = std::map<std::string, TypeVariant>;
 

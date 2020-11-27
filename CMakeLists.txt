@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 14)
 find_package(catkin REQUIRED COMPONENTS
   message_generation
   controller_interface
-  franka_controllers
+  franka_example_controllers
   pluginlib
   dynamic_reconfigure
 )
@@ -76,7 +76,7 @@ add_service_files(FILES
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  franka_controllers  # Or other packages containing msgs
+  franka_example_controllers  # Or other packages containing msgs
 
 )
 generate_dynamic_reconfigure_options(
@@ -117,7 +117,7 @@ catkin_package(
 #  LIBRARIES franka_motion_primitive
  CATKIN_DEPENDS
     message_runtime
-    franka_controllers
+    franka_example_controllers
     pluginlib
     controller_interface
 #  DEPENDS system_lib
@@ -196,7 +196,7 @@ install(DIRECTORY launch
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
+# install(TARGETS franka_motion_primitive
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

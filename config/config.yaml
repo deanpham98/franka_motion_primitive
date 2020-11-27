@@ -1,19 +1,19 @@
 motion_generator:
   type: franka_motion_primitive/MotionGenerator
 
-hybrid_controller:
-  type: franka_controllers/HybridController
-  arm_id: panda
-  joint_names:
-    - panda_joint1
-    - panda_joint2
-    - panda_joint3
-    - panda_joint4
-    - panda_joint5
-    - panda_joint6
-    - panda_joint7
+# hybrid_controller:
+#   type: franka_controllers/HybridController
+#   arm_id: panda
+#   joint_names:
+#     - panda_joint1
+#     - panda_joint2
+#     - panda_joint3
+#     - panda_joint4
+#     - panda_joint5
+#     - panda_joint6
+#     - panda_joint7
 
-  publish_rate: 200
+#   publish_rate: 200
 
-  gain:
-    Kp: [1000.0, 1000.0, 1000.0, 60.0, 60., 30.]
+#   gain:
+#     Kp: [1000.0, 1000.0, 1000.0, 60.0, 60., 30.]

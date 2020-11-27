@@ -31,7 +31,7 @@
   <!--   <exec_depend>roscpp</exec_depend> -->
   <!-- Use build_depend for packages you need at compile time: -->
   <build_depend>message_generation</build_depend>
-  <build_depend>franka_controllers</build_depend>
+  <build_depend>franka_example_controllers</build_depend>
   <build_depend>pluginlib</build_depend>
   <build_depend>controller_interface</build_depend>
 
@@ -45,7 +45,7 @@
   <!-- Use exec_depend for packages you need at runtime: -->
   <!-- for dependency on other messages -->
     <exec_depend>message_runtime</exec_depend>
-    <exec_depend>franka_controllers</exec_depend>
+    <exec_depend>franka_example_controllers</exec_depend>
     <exec_depend>pluginlib</exec_depend>
     <exec_depend>controller_interface</exec_depend>
 

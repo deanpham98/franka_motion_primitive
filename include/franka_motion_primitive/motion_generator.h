@@ -6,8 +6,8 @@
 #include <franka_hw/trigger_rate.h>
 #include <realtime_tools/realtime_publisher.h>
 
-#include <franka_controllers/HybridControllerCommand.h>
-#include <franka_controllers/Gain.h>
+#include <franka_example_controllers/VariableImpedanceControllerCommand.h>
+#include <franka_example_controllers/Gain.h>
 
 #include <franka_motion_primitive/primitive.h>
 #include <franka_motion_primitive/PrimitiveState.h>
@@ -87,11 +87,11 @@ namespace franka_motion_primitive {
 
     // publish controller command
     realtime_tools::RealtimePublisher<
-      franka_controllers::HybridControllerCommand> pub_controller_;
+      franka_example_controllers::VariableImpedanceControllerCommand> pub_controller_;
 
     // publish controller command
     realtime_tools::RealtimePublisher<
-      franka_controllers::Gain> pub_gain_;
+      franka_example_controllers::Gain> pub_gain_;
 
     // subscribe to run a primitive
     ros::Subscriber sub_primitive_cmd_;
