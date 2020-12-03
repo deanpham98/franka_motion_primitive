@@ -42,7 +42,8 @@ namespace franka_motion_primitive{
       // plan from compliant frame
       Pose c_pose;
       compliant_frame_->get_compliant_frame(c_pose);
-      s0_.pose = c_pose;
+      // s0_.pose = c_pose;
+      s0_.pose = s.pose;
       plan_trajectory();
     }
 
@@ -791,6 +792,7 @@ namespace franka_motion_primitive{
       // Pose c_pose;
       // compliant_frame_->get_compliant_frame(c_pose);
       // s0_.pose = c_pose;
+      compliant_frame_->set_compliant_frame(s.pose);
       plan_trajectory();
     }
 
@@ -800,10 +802,11 @@ namespace franka_motion_primitive{
 
     // update control
     // force
-    Vector6d fd;
-    compliant_frame_->get_fd(fd);
-    // progressively change the value of controlled force
-    cmd.f = fd_base_*0.01 + fd*0.99;
+    // Vector6d fd;
+    // compliant_frame_->get_fd(fd);
+    // // progressively change the value of controlled force
+    // cmd.f = fd_base_*0.01 + fd*0.99;
+    cmd.f = fd_base_;
 
     // ---- motion
     // desired pose
@@ -879,9 +882,9 @@ namespace franka_motion_primitive{
     if (t_max_ > 0 &&
           (ep.norm() > kPositionThresh || er.norm() > kOrientationThresh)) {
       status = Status::EXECUTING;
-      std::cout << ep.norm() << std::endl;
-      std::cout << er.norm() << std::endl << std::endl;
-      std::cout << t_exec_ << std::endl;
+      // std::cout << ep.norm() << std::endl;
+      // std::cout << er.norm() << std::endl << std::endl;
+      // std::cout << t_exec_ << std::endl;
     }
     else {status = Status::SUCCESS;}
   }

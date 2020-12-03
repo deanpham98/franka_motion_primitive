@@ -277,21 +277,27 @@ namespace franka_motion_primitive{
 
 
     // publish to controller
-    if (pub_controller_.trylock()){
-      for (size_t i = 0; i < 3; ++i){
-        pub_controller_.msg_.f[i] = cmd.f(i);
-        pub_controller_.msg_.f[i+3] = cmd.f(i+3);
-        pub_controller_.msg_.v[i] = cmd.v(i);
-        pub_controller_.msg_.v[i+3] = cmd.v(i+3);
-        pub_controller_.msg_.p[i] = cmd.pose.p[i];
-      }
-      pub_controller_.msg_.q[0] = cmd.pose.q.w();
-      pub_controller_.msg_.q[1] = cmd.pose.q.x();
-      pub_controller_.msg_.q[2] = cmd.pose.q.y();
-      pub_controller_.msg_.q[3] = cmd.pose.q.z();
+    if (execution_status_ == Status::EXECUTING){
+      if (pub_controller_.trylock()){
+        for (size_t i = 0; i < 3; ++i){
+          pub_controller_.msg_.f[i] = cmd.f(i);
+          pub_controller_.msg_.f[i+3] = cmd.f(i+3);
+          pub_controller_.msg_.v[i] = cmd.v(i);
+          pub_controller_.msg_.v[i+3] = cmd.v(i+3);
+          pub_controller_.msg_.p[i] = cmd.pose.p[i];
+        }
+        pub_controller_.msg_.q[0] = cmd.pose.q.w();
+        pub_controller_.msg_.q[1] = cmd.pose.q.x();
+        pub_controller_.msg_.q[2] = cmd.pose.q.y();
+        pub_controller_.msg_.q[3] = cmd.pose.q.z();
 
-      pub_controller_.unlockAndPublish();
+        pub_controller_.unlockAndPublish();
+      }
     }
+    // else {
+    //   cmd.pose.p = p;
+    //   cmd.pose.q = q;
+    // }
 
     if (state_publish_rate_() && pub_state_.trylock()) {
       pub_state_.msg_.stamp = t_now.toSec();
@@ -312,7 +318,7 @@ namespace franka_motion_primitive{
     ROS_INFO("receive command");
 
     target_primitive_type_ = msg->type;
-    std::cout <<  int(msg->type) << std::endl;
+    // std::cout <<  int(msg->type) << std::endl;
     msg2PrimitiveParam(primitive_param_, msg);
 
     kReceiveCommand = true;
